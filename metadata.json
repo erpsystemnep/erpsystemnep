@@ -1,0 +1,6 @@
+{
+  "name": "Multi-Company ERP Core",
+  "description": "Multi-company, multi-branch, and multi-warehouse enterprise resource planning architecture and foundation registry.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
