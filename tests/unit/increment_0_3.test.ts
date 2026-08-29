@@ -475,9 +475,68 @@ async function runAllTests() {
   });
 
   // --------------------------------------------------------------------------
-  // Suite 5: REST API HTTP Endpoints Integration
+  // Suite 5: Security Context Extraction & Production Safety Gate
   // --------------------------------------------------------------------------
-  console.log('\n--- Suite 5: REST API HTTP Endpoints Integration ---');
+  console.log('\n--- Suite 5: Security Context & Architectural Boundaries ---');
+
+  const { extractSecurityContext, requirePermission } = await import('../../src/server/middleware/auth.js');
+
+  await test('Dev/Test environment extracts simulated security context from headers', () => {
+    const mockReq: any = {
+      headers: {
+        'x-user-id': 'usr-test-123',
+        'x-user-email': 'tester@erp.local',
+        'x-company-id': 'comp-1',
+        'x-permissions': 'org.company.view,org.branch.create',
+      },
+    };
+    let nextCalled = false;
+    extractSecurityContext(mockReq, {} as any, () => {
+      nextCalled = true;
+    });
+
+    assert.ok(nextCalled);
+    assert.equal(mockReq.securityContext.userId, 'usr-test-123');
+    assert.equal(mockReq.securityContext.activeCompanyId, 'comp-1');
+    assert.deepEqual(mockReq.securityContext.effectivePermissions, ['org.company.view', 'org.branch.create']);
+    assert.deepEqual(mockReq.requestedTenantContext, { companyId: 'comp-1', branchId: null });
+  });
+
+  await test('requirePermission guard approves valid permission key and rejects unauthorized', () => {
+    const allowedReq: any = {
+      securityContext: {
+        userId: 'usr-1',
+        isSuperadmin: false,
+        effectivePermissions: ['org.company.view'],
+      },
+    };
+    let approved = false;
+    requirePermission('org.company.view')(allowedReq, {} as any, (err?: any) => {
+      assert.equal(err, undefined);
+      approved = true;
+    });
+    assert.ok(approved);
+
+    const forbiddenReq: any = {
+      securityContext: {
+        userId: 'usr-1',
+        isSuperadmin: false,
+        effectivePermissions: ['org.company.view'],
+      },
+    };
+    let rejected = false;
+    requirePermission('org.company.delete')(forbiddenReq, {} as any, (err?: any) => {
+      assert.ok(err instanceof AppError);
+      assert.equal(err.statusCode, 403);
+      rejected = true;
+    });
+    assert.ok(rejected);
+  });
+
+  // --------------------------------------------------------------------------
+  // Suite 6: REST API HTTP Endpoints Integration
+  // --------------------------------------------------------------------------
+  console.log('\n--- Suite 6: REST API HTTP Endpoints Integration ---');
 
   const app = createApp();
 

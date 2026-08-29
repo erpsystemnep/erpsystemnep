@@ -1,5 +1,6 @@
 import express, { Request, Response, NextFunction } from 'express';
 import { extractSecurityContext } from './middleware/auth.js';
+import { createAuthRouter } from './modules/auth/routes/auth.routes.js';
 import { createOrgRouter } from './modules/org/routes/org.routes.js';
 import { checkDatabaseHealth } from './db/connection.js';
 import { config } from './config.js';
@@ -27,7 +28,12 @@ export function createApp() {
     res.status(isHealthy ? 200 : 503).json(payload);
   });
 
+  // Authentication & Identity Routes
+  app.use('/api/v1/auth', createAuthRouter());
+  app.use('/api/auth', createAuthRouter());
+
   // Organization Domain Routes
+  app.use('/api/v1/org', createOrgRouter());
   app.use('/api/org', createOrgRouter());
 
   // Global Error Handler

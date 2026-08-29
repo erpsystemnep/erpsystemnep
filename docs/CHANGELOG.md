@@ -6,6 +6,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.0] - 2026-08-29
+
+### Added
+- **RBAC & Permission Catalogue Domain**:
+  - `APPROVED_ACTION_PRIMITIVES` (`src/server/modules/auth/seed/defaultRoles.ts`): Enforced the 11 approved action verbs (`view`, `create`, `edit`, `delete`, `export`, `approve`, `reject`, `post`, `cancel`, `reverse`, `print`).
+  - `STANDARD_PERMISSIONS`: Seed catalogue covering foundational enterprise domains (`org.*`, `auth.*`, `audit.*`, `system.*`).
+  - `STANDARD_ROLES`: Seed definitions for 5 system roles (`SUPERADMIN`, `COMPANY_ADMIN`, `BRANCH_MANAGER`, `WAREHOUSE_OPERATOR`, `AUDITOR_READONLY`).
+- **RBAC Repositories**:
+  - `PermissionRepository` (`src/server/modules/auth/repositories/permission.repository.ts`): Atomic permission queries and idempotent upsert batching.
+  - `RoleRepository` (`src/server/modules/auth/repositories/role.repository.ts`): Role management, permission set binding, user company/branch role assignment, and user role listing.
+- **RBAC Engine & Resolution Service (`RbacService`)**:
+  - `RbacService` (`src/server/modules/auth/services/rbac.service.ts`):
+    - `seedDefaults`: Seeds standard system roles and permissions idempotently.
+    - `assignRole`: Assigns company-wide (`branchId: null`) or branch-scoped roles with parent company constraint verification.
+    - `resolveEffectivePermissions`: Deterministic effective permission resolver evaluating user active state, superadmin status, company scoping, branch scoping, role aggregation, and strict cross-tenant isolation.
+- **Security Middleware Integration**:
+  - `extractSecurityContext` (`src/server/middleware/auth.ts`): Integrates JWT cryptographic identity with database-backed RBAC permission resolution. Rejects client-supplied privilege tampering in production.
+- **Automated Test Suite (`tests/unit/increment_0_5.test.ts`)**:
+  - 17 comprehensive automated tests covering action primitives, catalogue seeding, system roles, company vs branch scoping, role combination, cross-tenant isolation, superadmin wildcard authority, and security middleware gates.
+
+---
+
+## [0.4.0] - 2026-08-29
+
+### Added
+- **Authentication & Identity Repositories**:
+  - `UserRepository` (`src/server/modules/auth/repositories/user.repository.ts`): User persistence, email lookup, secure creation, last login timestamp recording, and safe profile mapping (excluding password hashes).
+- **Core Security Services**:
+  - `PasswordService` (`src/server/modules/auth/services/password.service.ts`): Bcrypt password hashing and comparison with configurable salt rounds and safe parameter handling.
+  - `TokenService` (`src/server/modules/auth/services/token.service.ts`): Cryptographic JWT token signing and verification with expiration, anti-tampering verification, and explicit exclusion of dynamic authorization claims.
+  - `AuthService` (`src/server/modules/auth/services/auth.service.ts`): User provisioning, credential authentication with anti-enumeration generic 401 handling, active account enforcement, current user lookup (`/me`), and logout.
+- **Authentication Routes & Middleware**:
+  - `createAuthRouter` (`src/server/modules/auth/routes/auth.routes.ts`): Mounted at `/api/v1/auth` and `/api/auth`:
+    - `POST /api/v1/auth/login`: User login returning JWT token and safe user profile.
+    - `POST /api/v1/auth/users`: User provisioning with password hashing and email uniqueness enforcement.
+    - `GET /api/v1/auth/me`: Authenticated current user profile lookup.
+    - `POST /api/v1/auth/logout`: Session termination.
+  - `extractSecurityContext` (`src/server/middleware/auth.ts`): Bearer token parsing and identity resolution; production security fail-closed gate.
+  - `requireAuth`: Middleware guard enforcing authenticated user presence.
+- **Automated Test Suite (`tests/unit/increment_0_4.test.ts`)**:
+  - 22 comprehensive unit and security tests covering bcrypt hashing, account invariants, login anti-enumeration, token validation and anti-tampering, `/me` profile retrieval, logout, and middleware integration.
+
+---
+
 ## [0.3.0] - 2026-08-29
 
 ### Added

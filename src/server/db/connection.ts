@@ -13,13 +13,20 @@ let poolInstance: pg.Pool | null = null;
 export function getPool(customUrl?: string): pg.Pool {
   if (!poolInstance) {
     const connectionString = customUrl || config.DATABASE_URL;
+    const isCloudDb =
+      connectionString.includes('supabase.co') ||
+      connectionString.includes('pooler.supabase.com') ||
+      connectionString.includes('aws.') ||
+      connectionString.includes('sslmode=require');
+    const useSsl = config.DB_SSL || isCloudDb;
 
     poolInstance = new Pool({
       connectionString,
       min: config.DB_POOL_MIN,
       max: config.DB_POOL_MAX,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
+      connectionTimeoutMillis: 10000,
+      ssl: useSsl ? { rejectUnauthorized: false } : undefined,
     });
 
     poolInstance.on('error', (err) => {

@@ -11,15 +11,18 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   APP_URL: z.string().url().default('http://localhost:3000'),
 
-  // Database Connection (Contract only; connection implemented in later increment)
+  // Database Connection
   DATABASE_URL: z
     .string()
-    .url()
-    .or(z.string().regex(/^postgres(ql)?:\/\/.+/))
     .optional()
     .default('postgresql://postgres:postgres@localhost:5432/erp_database'),
   DB_POOL_MIN: z.coerce.number().int().nonnegative().default(2),
   DB_POOL_MAX: z.coerce.number().int().positive().default(10),
+  DB_SSL: z
+    .string()
+    .optional()
+    .default('false')
+    .transform((val) => val === 'true' || val === '1'),
 
   // JWT & Authentication (Contract only; auth implemented in later increment)
   JWT_SECRET: z

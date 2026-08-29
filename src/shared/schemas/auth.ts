@@ -114,8 +114,9 @@ export const assignUserRoleSchema = z.object({
 
 export type LoginRequest = z.infer<typeof loginRequestSchema>;
 export type AuthResponse = z.infer<typeof authResponseSchema>;
-export type CreateUserInput = z.infer<typeof createUserSchema>;
-export type UpdateUserInput = z.infer<typeof updateUserSchema>;
-export type CreateRoleInput = z.infer<typeof createRoleSchema>;
-export type UpdateRoleInput = z.infer<typeof updateRoleSchema>;
-export type AssignUserRoleInput = z.infer<typeof assignUserRoleSchema>;
+export type CreateUserInput = z.input<typeof createUserSchema>;
+export type CreateUserOutput = z.output<typeof createUserSchema>;
+export type UpdateUserInput = z.input<typeof updateUserSchema>;
+export type CreateRoleInput = z.input<typeof createRoleSchema>;
+export type UpdateRoleInput = z.input<typeof updateRoleSchema>;
+export type AssignUserRoleInput = z.input<typeof assignUserRoleSchema>;
