@@ -271,15 +271,15 @@ async function runAllTests() {
   const branchA1 = 'branch-aaa-01';
   const branchA2 = 'branch-aaa-02';
 
-  let userCompanyAdmin: User;
-  let userBranchManager: User;
-  let userWarehouseOp: User;
-  let userSuperAdmin: User;
-  let userInactive: User;
+  let userCompanyAdmin!: User;
+  let userBranchManager!: User;
+  let userWarehouseOp!: User;
+  let userSuperAdmin!: User;
+  let userInactive!: User;
 
-  let roleCompanyAdmin: Role;
-  let roleBranchManager: Role;
-  let roleWarehouseOp: Role;
+  let roleCompanyAdmin!: Role;
+  let roleBranchManager!: Role;
+  let roleWarehouseOp!: Role;
 
   await test('Provisions test user identities', async () => {
     userCompanyAdmin = await userRepo.create({
