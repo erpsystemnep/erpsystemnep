@@ -1,3 +1,5 @@
+import dotenv from 'dotenv';
+dotenv.config({ override: true });
 import { z } from 'zod';
 
 /**
@@ -14,6 +16,7 @@ const envSchema = z.object({
   // Database Connection
   DATABASE_URL: z
     .string()
+    .transform((val) => val.trim())
     .optional()
     .default('postgresql://postgres:postgres@localhost:5432/erp_database'),
   DB_POOL_MIN: z.coerce.number().int().nonnegative().default(2),
