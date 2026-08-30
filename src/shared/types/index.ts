@@ -247,3 +247,131 @@ export interface PaginatedResult<T> {
   limit: number;
   totalPages: number;
 }
+
+// ============================================================================
+// MASTER DATA DOMAIN INTERFACES (Increment 0.8)
+// ============================================================================
+
+export type BusinessPartnerType = 'ORGANIZATION' | 'INDIVIDUAL';
+
+export interface BusinessPartner {
+  id: string;
+  companyId: string;
+  partnerCode: string;
+  legalName: string;
+  tradeName?: string | null;
+  partnerType: BusinessPartnerType;
+  taxIdentifier?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  countryCode: string;
+  currencyCode: string;
+  isCustomer: boolean;
+  isSupplier: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  addresses?: BusinessPartnerAddress[];
+  contacts?: BusinessPartnerContact[];
+}
+
+export type AddressType = 'BILLING' | 'SHIPPING' | 'REGISTERED' | 'OTHER';
+
+export interface BusinessPartnerAddress {
+  id: string;
+  partnerId: string;
+  addressType: AddressType;
+  addressLine1: string;
+  addressLine2?: string | null;
+  city?: string | null;
+  stateProvince?: string | null;
+  postalCode?: string | null;
+  countryCode: string;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BusinessPartnerContact {
+  id: string;
+  partnerId: string;
+  contactName: string;
+  designation?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  isPrimary: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ItemCategory {
+  id: string;
+  companyId: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  parentCategoryId?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  parentCode?: string;
+  parentName?: string;
+}
+
+export type UomType = 'WEIGHT' | 'VOLUME' | 'LENGTH' | 'AREA' | 'COUNT' | 'TIME' | 'OTHER';
+
+export interface UnitOfMeasure {
+  id: string;
+  companyId: string;
+  code: string;
+  name: string;
+  symbol: string;
+  uomType: UomType;
+  conversionPrecision: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ItemType =
+  | 'RAW_MATERIAL'
+  | 'INGREDIENT'
+  | 'FINISHED_GOOD'
+  | 'SEMI_FINISHED_GOOD'
+  | 'PACKAGING'
+  | 'CONSUMABLE'
+  | 'SERVICE'
+  | 'OTHER';
+
+export interface Item {
+  id: string;
+  companyId: string;
+  sku: string;
+  itemName: string;
+  description?: string | null;
+  categoryId?: string | null;
+  itemType: ItemType;
+  baseUomId: string;
+  isStockItem: boolean;
+  isSaleable: boolean;
+  isPurchasable: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  category?: ItemCategory | null;
+  baseUom?: UnitOfMeasure | null;
+  conversions?: ItemUomConversion[];
+}
+
+export interface ItemUomConversion {
+  id: string;
+  itemId: string;
+  fromUomId: string;
+  toUomId: string;
+  conversionFactor: number;
+  createdAt: string;
+  updatedAt: string;
+  fromUomCode?: string;
+  toUomCode?: string;
+}
+

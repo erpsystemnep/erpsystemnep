@@ -85,9 +85,16 @@ export async function runDatabaseVerificationTests() {
     'role_permissions',
     'user_company_roles',
     'audit_logs',
+    'business_partners',
+    'business_partner_addresses',
+    'business_partner_contacts',
+    'item_categories',
+    'uoms',
+    'items',
+    'item_uom_conversions',
   ];
 
-  await test('All 11 approved foundation tables exist in the database', async () => {
+  await test('All 18 approved foundation & master tables exist in the database', async () => {
     const res = await pool.query(`
       SELECT table_name 
       FROM information_schema.tables 

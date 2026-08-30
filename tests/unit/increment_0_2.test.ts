@@ -176,12 +176,12 @@ async function runAllTests() {
     const mockDb = createMockDbClient();
     const result = await runMigrations(mockDb as any);
 
-    assert.equal(result.totalDiscovered, 1);
+    assert.ok(result.totalDiscovered >= 1);
     assert.equal(result.alreadyApplied, 0);
-    assert.equal(result.newlyApplied.length, 1);
-    assert.equal(result.newlyApplied[0], '0001_initial_foundation');
+    assert.equal(result.newlyApplied.length, result.totalDiscovered);
+    assert.ok(result.newlyApplied.includes('0001_initial_foundation'));
 
-    assert.equal(mockDb.schemaMigrations.size, 1);
+    assert.equal(mockDb.schemaMigrations.size, result.totalDiscovered);
     const recorded = mockDb.schemaMigrations.get('0001_initial_foundation');
     assert.ok(recorded);
     assert.equal(recorded.name, '0001_initial_foundation.sql');
@@ -192,12 +192,12 @@ async function runAllTests() {
 
     // First run
     const result1 = await runMigrations(mockDb as any);
-    assert.equal(result1.newlyApplied.length, 1);
+    assert.ok(result1.newlyApplied.length >= 1);
 
     // Second run
     const result2 = await runMigrations(mockDb as any);
-    assert.equal(result2.totalDiscovered, 1);
-    assert.equal(result2.alreadyApplied, 1);
+    assert.equal(result2.totalDiscovered, result1.totalDiscovered);
+    assert.equal(result2.alreadyApplied, result1.totalDiscovered);
     assert.equal(result2.newlyApplied.length, 0); // Nothing newly applied
   });
 
@@ -270,12 +270,13 @@ async function runAllTests() {
 
     const statusBefore = await getMigrationStatus(mockDb as any);
     assert.equal(statusBefore.applied.length, 0);
-    assert.equal(statusBefore.pending.length, 1);
+    assert.ok(statusBefore.pending.length >= 1);
+    const pendingCount = statusBefore.pending.length;
 
     await runMigrations(mockDb as any);
 
     const statusAfter = await getMigrationStatus(mockDb as any);
-    assert.equal(statusAfter.applied.length, 1);
+    assert.equal(statusAfter.applied.length, pendingCount);
     assert.equal(statusAfter.pending.length, 0);
   });
 

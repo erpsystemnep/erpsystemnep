@@ -4,6 +4,7 @@ import { createAuthRouter } from './modules/auth/routes/auth.routes.js';
 import { createOrgRouter } from './modules/org/routes/org.routes.js';
 import { createNumberingRouter } from './modules/numbering/routes/numbering.routes.js';
 import { createAuditRouter } from './modules/audit/routes/audit.routes.js';
+import { createMasterRouter } from './modules/master/routes/master.routes.js';
 import { checkDatabaseHealth } from './db/connection.js';
 import { config } from './config.js';
 import { AppError } from '../shared/errors/AppError.js';
@@ -45,6 +46,10 @@ export function createApp() {
   // Audit Trail Infrastructure Routes
   app.use('/api/v1/audit', createAuditRouter());
   app.use('/api/audit', createAuditRouter());
+
+  // Master Data Domain Routes (Increment 0.8)
+  app.use('/api/v1/master', createMasterRouter());
+  app.use('/api/master', createMasterRouter());
 
   // Global Error Handler
   app.use((err: any, req: Request, res: Response, next: NextFunction) => {

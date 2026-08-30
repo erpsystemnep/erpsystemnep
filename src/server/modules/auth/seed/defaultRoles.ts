@@ -77,6 +77,32 @@ export const STANDARD_PERMISSIONS: PermissionDefinition[] = [
   { id: 'system.document.cancel', module: 'system', action: 'cancel', description: 'Cancel unposted approved documents' },
   { id: 'system.document.reverse', module: 'system', action: 'reverse', description: 'Post compensating reversals on posted transactions' },
   { id: 'system.document.print', module: 'system', action: 'print', description: 'Generate official print and PDF outputs' },
+
+  // Master Data Module - Items
+  { id: 'master.item.view', module: 'master', action: 'view', description: 'View item and product catalog records' },
+  { id: 'master.item.create', module: 'master', action: 'create', description: 'Create item master records and conversion ratios' },
+  { id: 'master.item.edit', module: 'master', action: 'edit', description: 'Update item specifications, descriptions, and categories' },
+  { id: 'master.item.delete', module: 'master', action: 'delete', description: 'Deactivate or soft-delete item records' },
+  { id: 'master.item.export', module: 'master', action: 'export', description: 'Export item catalog data and price lists' },
+
+  // Master Data Module - Business Partners
+  { id: 'master.partner.view', module: 'master', action: 'view', description: 'View customer and supplier business partner records' },
+  { id: 'master.partner.create', module: 'master', action: 'create', description: 'Create customer and supplier partner records' },
+  { id: 'master.partner.edit', module: 'master', action: 'edit', description: 'Update business partner profiles, addresses, and contacts' },
+  { id: 'master.partner.delete', module: 'master', action: 'delete', description: 'Deactivate or soft-delete business partner records' },
+  { id: 'master.partner.export', module: 'master', action: 'export', description: 'Export business partner registries and directories' },
+
+  // Master Data Module - Item Categories
+  { id: 'master.category.view', module: 'master', action: 'view', description: 'View product and material category hierarchy' },
+  { id: 'master.category.create', module: 'master', action: 'create', description: 'Create product taxonomy and material categories' },
+  { id: 'master.category.edit', module: 'master', action: 'edit', description: 'Modify category attributes and hierarchy structures' },
+  { id: 'master.category.delete', module: 'master', action: 'delete', description: 'Deactivate or remove unassigned categories' },
+
+  // Master Data Module - Units of Measure (UOM)
+  { id: 'master.uom.view', module: 'master', action: 'view', description: 'View units of measure master catalog' },
+  { id: 'master.uom.create', module: 'master', action: 'create', description: 'Define new units of measure and symbols' },
+  { id: 'master.uom.edit', module: 'master', action: 'edit', description: 'Modify unit of measure specifications and symbols' },
+  { id: 'master.uom.delete', module: 'master', action: 'delete', description: 'Deactivate unreferenced units of measure' },
 ];
 
 export interface StandardRoleDefinition {
@@ -133,6 +159,24 @@ export const STANDARD_ROLES: StandardRoleDefinition[] = [
       'system.document.cancel',
       'system.document.reverse',
       'system.document.print',
+      'master.item.view',
+      'master.item.create',
+      'master.item.edit',
+      'master.item.delete',
+      'master.item.export',
+      'master.partner.view',
+      'master.partner.create',
+      'master.partner.edit',
+      'master.partner.delete',
+      'master.partner.export',
+      'master.category.view',
+      'master.category.create',
+      'master.category.edit',
+      'master.category.delete',
+      'master.uom.view',
+      'master.uom.create',
+      'master.uom.edit',
+      'master.uom.delete',
     ],
   },
   {
@@ -153,6 +197,10 @@ export const STANDARD_ROLES: StandardRoleDefinition[] = [
       'system.workflow.reject',
       'system.document.cancel',
       'system.document.print',
+      'master.item.view',
+      'master.partner.view',
+      'master.category.view',
+      'master.uom.view',
     ],
   },
   {
@@ -164,6 +212,9 @@ export const STANDARD_ROLES: StandardRoleDefinition[] = [
       'org.warehouse.view',
       'org.warehouse.post',
       'system.document.print',
+      'master.item.view',
+      'master.uom.view',
+      'master.category.view',
     ],
   },
   {
@@ -185,6 +236,12 @@ export const STANDARD_ROLES: StandardRoleDefinition[] = [
       'audit.log.export',
       'system.series.view',
       'system.document.print',
+      'master.item.view',
+      'master.item.export',
+      'master.partner.view',
+      'master.partner.export',
+      'master.category.view',
+      'master.uom.view',
     ],
   },
 ];
