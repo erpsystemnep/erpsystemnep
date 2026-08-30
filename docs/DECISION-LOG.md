@@ -201,5 +201,71 @@ Phase 0 Increment 0.5 requires establishing the database-backed Role-Based Acces
 - **Positive**: Strict tenant isolation, complete elimination of client privilege tampering in production, no stale permission claims in JWTs, and deterministic scoping inheritance.
 - **Negative**: Database lookup required during token verification (mitigated by indexed query patterns).
 
+---
+
+## ADR 010: Shared Transaction Infrastructure (Numbering, Workflow State Machine, SoD & Audit Ledger)
+
+### Status
+Accepted
+
+### Context
+Phase 0 Increment 0.6 requires creating the reusable infrastructure layer for all future transactional business modules (Sales, Purchasing, Inventory, Accounting, Manufacturing). Crucially, transactional documents require gapless or ordered atomic numbering series, deterministic state transition graphs, strict Segregation of Duties (creator != approver), immutable audit log dispatching, and rollback safety.
+
+### Decision
+1. **Atomic Numbering Series Engine (`NumberingService`)**:
+   - Manages document prefixing, padding, sequence counters, and reset periods (`NONE`, `ANNUAL`, `MONTHLY`).
+   - Supports company-wide and branch-scoped numbering series with automatic company fallback.
+   - Enforces concurrency safety using `SELECT ... FOR UPDATE` row-level locks within transactions.
+   - Strictly enforces tenant isolation (`companyId`).
+2. **Segregation of Duties & Approval Authority (`SodService`)**:
+   - Enforces creator-approver separation: `creatorId !== approverId`.
+   - Validates identity, active status, multi-tenant boundaries, branch scoping, and required approval permissions (`validateApprovalAuthority`).
+3. **Workflow State Machine Engine (`StateMachineEngine`)**:
+   - Enforces strict transition graphs across standard enterprise document states (`DRAFT` -> `SUBMITTED` -> `APPROVED` -> `POSTED` -> `REVERSED` / `CANCELLED`).
+   - Guarantees `POSTED` document immutability (modifications/deletions blocked; only valid `REVERSED` transitions allowed).
+   - Validates user permissions and SoD checks on transition invocations.
+4. **Immutable Audit Ledger & Security Dispatcher (`AuditService`)**:
+   - Cryptographically bound and identity-stamped audit dispatcher (`logCreate`, `logUpdate`, `logDelete`, `logApprove`, `logReject`, `logPost`, `logReverse`, `logCancel`).
+   - Security context binding ensures `companyId` and `userId` cannot be forged by non-superadmin actors.
+   - Backed by database immutability triggers preventing `UPDATE` or `DELETE` on `audit_logs`.
+
+### Consequences
+- **Positive**: Standardized, rock-solid transactional foundation for all downstream domain modules; eliminates duplicate sequence/state/audit logic across modules.
+- **Negative**: Adds mandatory checks to all state transitions (required for enterprise compliance).
+
+---
+
+## ADR 011: Authenticated System Foundation Console & Multi-Tenant Context Switching
+
+### Status
+Accepted
+
+### Context
+Phase 0 Increment 0.7 requires building an authenticated System Foundation Console in React 19 to expose, verify, and operate the platform foundations established in Increments 0.1 through 0.6. The console must interact seamlessly with live backend routes without trusting client-side claims or weakening server-side security boundaries.
+
+### Decision
+1. **Centralized API Client (`src/client/api/client.ts`)**:
+   - Manages signed Bearer JWT injection via `Authorization` headers.
+   - Attaches dynamic tenant context selectors (`X-Company-Id`, `X-Branch-Id`).
+   - Normalizes standardized `ApiResponse` and `AppError` payloads.
+   - Strictly refuses to transmit client-side permission claims (`x-permissions`, `x-is-superadmin`).
+2. **Authentication & Session Context Provider (`src/client/context/AuthContext.tsx`)**:
+   - Manages JWT storage, active user profile (`/me`), and active tenant selectors.
+   - Upon company or branch context change, invalidates cached permissions and triggers server-side re-resolution.
+   - Implements fail-closed behavior on 401/403 errors.
+3. **Dedicated Foundation Control Panels**:
+   - **Identity & Session View**: Profile viewer, token inspector, credential authentication, and company/branch selectors.
+   - **Organization Explorer**: Multi-company, branch, and warehouse hierarchy explorer with active session indicators.
+   - **RBAC & Permission Inspector**: 11 approved action primitives and standard 5 system role catalogues.
+   - **Numbering Series Engine**: Non-consuming safe preview generator and series metadata viewer.
+   - **Workflow & SoD Simulator**: Interactive state machine evaluator testing transition rules, terminal states, POSTED immutability, and creator/approver separation without mutating production data.
+   - **Audit Trail Viewer**: Search and filter interface for immutable audit logs with JSON change diff inspector.
+   - **System Diagnostics Monitor**: Real-time Supabase health check, PostgreSQL pool latency telemetry, and migration checksum verifier.
+
+### Consequences
+- **Positive**: Complete interactive visibility into platform foundation state; enables real-time verification of security boundaries and tenant isolation.
+- **Negative**: Adds frontend bundle size (520 kB client bundle, well within production tolerances).
+
+
 
 

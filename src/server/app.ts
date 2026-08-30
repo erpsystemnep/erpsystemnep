@@ -2,6 +2,8 @@ import express, { Request, Response, NextFunction } from 'express';
 import { extractSecurityContext } from './middleware/auth.js';
 import { createAuthRouter } from './modules/auth/routes/auth.routes.js';
 import { createOrgRouter } from './modules/org/routes/org.routes.js';
+import { createNumberingRouter } from './modules/numbering/routes/numbering.routes.js';
+import { createAuditRouter } from './modules/audit/routes/audit.routes.js';
 import { checkDatabaseHealth } from './db/connection.js';
 import { config } from './config.js';
 import { AppError } from '../shared/errors/AppError.js';
@@ -35,6 +37,14 @@ export function createApp() {
   // Organization Domain Routes
   app.use('/api/v1/org', createOrgRouter());
   app.use('/api/org', createOrgRouter());
+
+  // Numbering Series Infrastructure Routes
+  app.use('/api/v1/numbering', createNumberingRouter());
+  app.use('/api/numbering', createNumberingRouter());
+
+  // Audit Trail Infrastructure Routes
+  app.use('/api/v1/audit', createAuditRouter());
+  app.use('/api/audit', createAuditRouter());
 
   // Global Error Handler
   app.use((err: any, req: Request, res: Response, next: NextFunction) => {

@@ -6,6 +6,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.0] - 2026-08-30
+
+### Added
+- **Authenticated System Foundation Console (React 19 & Tailwind CSS)**:
+  - **API Client Infrastructure (`src/client/api/client.ts`)**:
+    - Centralized HTTP client managing Bearer JWT injection, dynamic tenant context headers (`X-Company-Id`, `X-Branch-Id`), and AppError status normalization.
+    - Zero client trust: strictly omits client-supplied permission claims (`x-permissions`, `x-is-superadmin`).
+  - **Authentication Context & Tenant Switcher (`src/client/context/AuthContext.tsx`)**:
+    - Session lifecycle management, login/logout, profile refresh (`/me`), and active company/branch state synchronization with automatic permission re-resolution.
+  - **Interactive Foundation Consoles (`src/client/components/`)**:
+    - `AuthSessionView`: Live user authentication, signed Bearer JWT inspector, profile metadata, and tenant context switcher.
+    - `OrgHierarchyView`: Interactive multi-tenant explorer for Companies, Operating Branches, and Physical/Virtual Warehouses.
+    - `RbacMatrixView`: System role catalogue, 11 enterprise action primitives, and server-authoritative effective permission inspector.
+    - `NumberingSeriesView`: Safe, non-consuming sequence preview calculator and series configuration manager.
+    - `WorkflowSimulatorView`: Interactive state machine and Segregation of Duties (SoD) simulator testing transition rules, terminal states, and POSTED immutability without mutating production data.
+    - `AuditTrailView`: Searchable, filterable audit ledger with JSON state diff inspector backed by PostgreSQL immutability triggers.
+    - `SystemHealthView`: Real-time Supabase PostgreSQL connection status, pool latency metrics, and migration checksum verifier.
+  - **Upgraded Main Layout (`src/App.tsx`)**: Responsive, accessible foundation control plane with active tenant badge indicators.
+- **Automated Test Suite (`tests/unit/increment_0_7.test.ts`)**:
+  - 10 unit tests validating token attachment, context propagation, error standardization, non-consuming preview math, terminal states, POSTED immutability, SoD violation detection, audit filter formatting, and 401 fail-closed handling.
+
+---
+
+## [0.6.0] - 2026-08-30
+
+### Added
+- **Shared Transaction Infrastructure Domain**:
+  - **Numbering Series Engine** (`src/server/modules/numbering/`):
+    - `NumberingSeriesRepository`: Data access layer for numbering series with optimistic/row-level lock patterns (`findForUpdate`).
+    - `NumberingService`: Gapless sequence generator supporting prefix/suffix templates, zero-padding, reset frequencies (`NONE`, `ANNUAL`, `MONTHLY`), branch-specific overrides with company fallback, and multi-tenant isolation.
+    - `numbering.routes.ts`: REST endpoints mounted at `/api/v1/numbering-series` and `/api/numbering-series`.
+  - **Workflow & Segregation of Duties Engine** (`src/server/modules/workflow/`):
+    - `SodService`: Strict creator-approver separation enforcement and approval authority verification (`validateApprovalAuthority`) checking identity, tenant isolation, branch scoping, and required RBAC permissions.
+    - `StateMachineEngine`: Configurable transition matrix validator across standard document states (`DRAFT` -> `SUBMITTED` -> `APPROVED` -> `POSTED` -> `REVERSED` / `CANCELLED`). Enforces `POSTED` document immutability and terminal state restrictions.
+  - **Audit Ledger & Security Dispatcher** (`src/server/modules/audit/`):
+    - `AuditRepository`: Data access for audit records supporting multi-criteria tenant-scoped filtering and pagination.
+    - `AuditService`: Identity-bound event dispatcher (`logCreate`, `logUpdate`, `logDelete`, `logApprove`, `logReject`, `logPost`, `logReverse`, `logCancel`) preventing tenant/user spoofing.
+    - `audit.routes.ts`: REST endpoints mounted at `/api/v1/audit-logs` and `/api/audit-logs`.
+- **Automated Test Suite (`tests/unit/increment_0_6.test.ts`)**:
+  - 19 comprehensive unit tests covering atomic numbering generation, concurrency locking, reset periods, branch overrides, SoD creator-approver separation, approval authority validation, state machine transition validation, posted document immutability, reversal flows, terminal state handling, audit log dispatching, anti-spoofing tenant security, and an end-to-end transactional document lifecycle simulation.
+
+---
+
 ## [0.5.0] - 2026-08-29
 
 ### Added

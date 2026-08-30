@@ -131,6 +131,56 @@ export type AuditAction =
   | 'LOGOUT' 
   | 'PERMISSION_CHANGE';
 
+export type DocumentState =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'POSTED'
+  | 'CANCELLED'
+  | 'REVERSED';
+
+export interface StateTransitionDefinition {
+  from: DocumentState;
+  to: DocumentState;
+  action: string;
+  requiredPermission?: string;
+  requiresSoD?: boolean; // When true, creator cannot execute this transition (e.g. approve/post)
+  description?: string;
+}
+
+export interface StateMachineConfig {
+  documentType: string;
+  initialState: DocumentState;
+  allowedTransitions: StateTransitionDefinition[];
+  allowReversal?: boolean; // When true, POSTED documents can transition to REVERSED
+}
+
+export interface GenerateNumberParams {
+  companyId: string;
+  branchId?: string | null;
+  documentType: string;
+}
+
+export interface GeneratedNumberResult {
+  formattedNumber: string;
+  seriesId: string;
+  sequenceNumber: number;
+  prefix: string;
+  suffix?: string;
+}
+
+export interface ValidateApprovalAuthorityParams {
+  ctx: SecurityContext;
+  companyId: string;
+  branchId?: string | null;
+  requiredPermission?: string;
+  creatorId?: string;
+  documentType?: string;
+  documentId?: string;
+  strictSoD?: boolean;
+}
+
 export interface AuditLog {
   id: string;
   companyId?: string | null;

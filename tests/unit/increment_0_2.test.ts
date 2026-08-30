@@ -314,6 +314,7 @@ async function runAllTests() {
   console.log(`\n=============================================`);
   console.log(`ALL ${passedTests}/${totalTests} INCREMENT 0.2 TESTS PASSED!`);
   console.log(`=============================================\n`);
+  process.exit(0);
 }
 
 runAllTests().catch((err) => {

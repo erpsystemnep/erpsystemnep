@@ -200,12 +200,11 @@ export async function runDatabaseVerificationTests() {
   console.log(`\n=============================================`);
   console.log(`ALL ${passCount}/${testCount} REAL DB VERIFICATION TESTS PASSED!`);
   console.log(`=============================================`);
+  process.exit(0);
 }
 
-// Direct execution runner
-if (process.argv[1]?.endsWith('db_verification.test.ts')) {
-  runDatabaseVerificationTests().catch((err) => {
-    console.error('Database verification failed:', err);
-    process.exit(1);
-  });
-}
+// Always run when invoked as a script
+runDatabaseVerificationTests().catch((err) => {
+  console.error('Database verification failed:', err);
+  process.exit(1);
+});

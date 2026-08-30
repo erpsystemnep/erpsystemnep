@@ -264,3 +264,4 @@ test('loadConfig throws descriptive error when port or environment is invalid', 
 console.log(`\n=============================================`);
 console.log(`ALL ${passedTests}/${totalTests} TESTS PASSED SUCCESSFULLY!`);
 console.log(`=============================================\n`);
+process.exit(0);
