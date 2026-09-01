@@ -7,6 +7,9 @@ import { NumberingSeriesView } from './client/components/numbering/NumberingSeri
 import { WorkflowSimulatorView } from './client/components/workflow/WorkflowSimulatorView.js';
 import { AuditTrailView } from './client/components/audit/AuditTrailView.js';
 import { SystemHealthView } from './client/components/diagnostics/SystemHealthView.js';
+import { MasterDataView } from './client/components/master/MasterDataView.js';
+import { PurchasingConsoleView } from './client/components/purchasing/PurchasingConsoleView.js';
+import { InventoryConsoleView } from './client/components/inventory/InventoryConsoleView.js';
 import {
   Shield,
   Building2,
@@ -18,9 +21,12 @@ import {
   Layers,
   Lock,
   CheckCircle2,
+  Package2,
+  ShoppingCart,
+  Boxes,
 } from 'lucide-react';
 
-type NavTab = 'session' | 'org' | 'rbac' | 'numbering' | 'workflow' | 'audit' | 'health';
+type NavTab = 'session' | 'org' | 'rbac' | 'master' | 'purchasing' | 'inventory' | 'numbering' | 'workflow' | 'audit' | 'health';
 
 const MainLayout: React.FC = () => {
   const { user, isAuthenticated, activeCompany, activeBranch, isSuperadmin } = useAuth();
@@ -28,6 +34,9 @@ const MainLayout: React.FC = () => {
 
   const navItems: { id: NavTab; label: string; icon: React.FC<{ className?: string }> }[] = [
     { id: 'session', label: 'Identity & Session', icon: Shield },
+    { id: 'master', label: 'Master Data', icon: Package2 },
+    { id: 'purchasing', label: 'Purchasing & POs', icon: ShoppingCart },
+    { id: 'inventory', label: 'Inventory & Stock Ledger', icon: Boxes },
     { id: 'org', label: 'Organization Hierarchy', icon: Building2 },
     { id: 'rbac', label: 'RBAC & Permissions', icon: KeyRound },
     { id: 'numbering', label: 'Numbering Series', icon: Hash },
@@ -137,6 +146,9 @@ const MainLayout: React.FC = () => {
         {/* Content Area */}
         <main className="flex-1 bg-transparent">
           {activeTab === 'session' && <AuthSessionView />}
+          {activeTab === 'master' && <MasterDataView />}
+          {activeTab === 'purchasing' && <PurchasingConsoleView />}
+          {activeTab === 'inventory' && <InventoryConsoleView />}
           {activeTab === 'org' && <OrgHierarchyView />}
           {activeTab === 'rbac' && <RbacMatrixView />}
           {activeTab === 'numbering' && <NumberingSeriesView />}

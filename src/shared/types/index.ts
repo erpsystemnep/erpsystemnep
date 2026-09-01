@@ -138,7 +138,8 @@ export type DocumentState =
   | 'REJECTED'
   | 'POSTED'
   | 'CANCELLED'
-  | 'REVERSED';
+  | 'REVERSED'
+  | 'CLOSED';
 
 export interface StateTransitionDefinition {
   from: DocumentState;
@@ -374,4 +375,549 @@ export interface ItemUomConversion {
   fromUomCode?: string;
   toUomCode?: string;
 }
+
+// ============================================================================
+// PURCHASING, BATCH, QC & INVENTORY STOCK LEDGER (Increment 0.9)
+// ============================================================================
+
+export type PurchaseOrderStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'CANCELLED'
+  | 'CLOSED';
+
+export interface PurchaseOrder {
+  id: string;
+  companyId: string;
+  branchId?: string | null;
+  poNumber: string;
+  supplierId: string;
+  orderDate: string;
+  expectedDeliveryDate?: string | null;
+  status: PurchaseOrderStatus;
+  currencyCode: string;
+  exchangeRate: number;
+  subtotal: number;
+  taxTotal: number;
+  grandTotal: number;
+  notes?: string | null;
+  createdBy?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  supplier?: BusinessPartner | null;
+  lines?: PurchaseOrderLine[];
+}
+
+export interface PurchaseOrderLine {
+  id: string;
+  purchaseOrderId: string;
+  lineNumber: number;
+  itemId: string;
+  warehouseId: string;
+  uomId: string;
+  orderedQuantity: number;
+  conversionFactor: number;
+  baseQuantity: number;
+  unitPrice: number;
+  taxRate: number;
+  taxAmount: number;
+  lineTotal: number;
+  createdAt: string;
+  updatedAt: string;
+  item?: Item | null;
+  warehouse?: Warehouse | null;
+  uom?: UnitOfMeasure | null;
+}
+
+export interface InventoryBatch {
+  id: string;
+  companyId: string;
+  itemId: string;
+  batchNumber: string;
+  supplierId?: string | null;
+  supplierBatchNumber?: string | null;
+  manufacturingDate?: string | null;
+  expiryDate?: string | null;
+  unitCost: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  item?: Item | null;
+  supplier?: BusinessPartner | null;
+}
+
+export type PurchaseReceiptStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'APPROVED'
+  | 'POSTED'
+  | 'REVERSED'
+  | 'CANCELLED';
+
+export interface PurchaseReceipt {
+  id: string;
+  companyId: string;
+  branchId?: string | null;
+  receiptNumber: string;
+  purchaseOrderId?: string | null;
+  supplierId: string;
+  receiptDate: string;
+  status: PurchaseReceiptStatus;
+  supplierDeliveryNote?: string | null;
+  qcRequired: boolean;
+  totalAmount: number;
+  notes?: string | null;
+  createdBy?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  postedBy?: string | null;
+  postedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  supplier?: BusinessPartner | null;
+  purchaseOrder?: PurchaseOrder | null;
+  lines?: PurchaseReceiptLine[];
+}
+
+export interface PurchaseReceiptLine {
+  id: string;
+  receiptId: string;
+  lineNumber: number;
+  poLineId?: string | null;
+  itemId: string;
+  warehouseId: string;
+  uomId: string;
+  receivedQuantity: number;
+  conversionFactor: number;
+  baseQuantity: number;
+  unitRate: number;
+  totalAmount: number;
+  createdAt: string;
+  updatedAt: string;
+  item?: Item | null;
+  warehouse?: Warehouse | null;
+  uom?: UnitOfMeasure | null;
+  batchAllocations?: PurchaseReceiptBatchAllocation[];
+}
+
+export interface PurchaseReceiptBatchAllocation {
+  id: string;
+  receiptLineId: string;
+  batchId: string;
+  quantity: number;
+  unitCost: number;
+  createdAt: string;
+  batch?: InventoryBatch | null;
+}
+
+export type QcInspectionStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'APPROVED'
+  | 'POSTED'
+  | 'CANCELLED';
+
+export interface QcInspection {
+  id: string;
+  companyId: string;
+  branchId?: string | null;
+  inspectionNumber: string;
+  receiptId: string;
+  inspectionDate: string;
+  status: QcInspectionStatus;
+  inspectorId?: string | null;
+  remarks?: string | null;
+  createdBy?: string | null;
+  postedBy?: string | null;
+  postedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  receipt?: PurchaseReceipt | null;
+  lines?: QcInspectionLine[];
+}
+
+export interface QcInspectionLine {
+  id: string;
+  inspectionId: string;
+  receiptLineId: string;
+  batchId: string;
+  itemId: string;
+  warehouseId: string;
+  receivedQuantity: number;
+  passedQuantity: number;
+  failedQuantity: number;
+  rejectionReason?: string | null;
+  remarks?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  item?: Item | null;
+  batch?: InventoryBatch | null;
+  warehouse?: Warehouse | null;
+}
+
+export type PurchaseReturnStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'APPROVED'
+  | 'POSTED'
+  | 'REVERSED'
+  | 'CANCELLED';
+
+export interface PurchaseReturn {
+  id: string;
+  companyId: string;
+  branchId?: string | null;
+  returnNumber: string;
+  supplierId: string;
+  receiptId?: string | null;
+  qcInspectionId?: string | null;
+  returnDate: string;
+  status: PurchaseReturnStatus;
+  reason?: string | null;
+  totalAmount: number;
+  createdBy?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  postedBy?: string | null;
+  postedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  supplier?: BusinessPartner | null;
+  receipt?: PurchaseReceipt | null;
+  qcInspection?: QcInspection | null;
+  lines?: PurchaseReturnLine[];
+}
+
+export interface PurchaseReturnLine {
+  id: string;
+  returnId: string;
+  qcLineId?: string | null;
+  receiptLineId: string;
+  batchId: string;
+  itemId: string;
+  warehouseId: string;
+  returnQuantity: number;
+  unitRate: number;
+  totalAmount: number;
+  createdAt: string;
+  item?: Item | null;
+  batch?: InventoryBatch | null;
+  warehouse?: Warehouse | null;
+}
+
+export type StockStatus = 'AVAILABLE' | 'QC_PENDING' | 'QC_FAILED' | 'RESERVED';
+
+export type StockMovementType =
+  | 'PURCHASE_RECEIPT'
+  | 'GOODS_RECEIPT'
+  | 'QC_RELEASE'
+  | 'QC_RESTRICTION'
+  | 'PURCHASE_RETURN'
+  | 'SALES_DELIVERY'
+  | 'SALES_RESERVATION'
+  | 'SALES_RESERVATION_RELEASE'
+  | 'SALES_DELIVERY_REVERSAL'
+  | 'REVERSAL';
+
+export interface StockLedgerEntry {
+  id: string;
+  companyId: string;
+  branchId?: string | null;
+  warehouseId: string;
+  itemId: string;
+  batchId?: string | null;
+  uomId: string;
+  quantity: number;
+  stockStatus: StockStatus;
+  movementType: StockMovementType;
+  unitCost: number;
+  totalCost: number;
+  sourceDocumentType: string;
+  sourceDocumentId: string;
+  sourceDocumentLineId?: string | null;
+  createdBy?: string | null;
+  createdAt: string;
+  item?: Item | null;
+  warehouse?: Warehouse | null;
+  batch?: InventoryBatch | null;
+  uom?: UnitOfMeasure | null;
+}
+
+export interface StockBalanceSummary {
+  companyId: string;
+  warehouseId: string;
+  warehouseCode?: string;
+  warehouseName?: string;
+  itemId: string;
+  itemSku?: string;
+  itemName?: string;
+  batchId?: string | null;
+  batchNumber?: string | null;
+  uomId: string;
+  uomCode?: string;
+  uomSymbol?: string;
+  availableQuantity: number;
+  qcPendingQuantity: number;
+  qcFailedQuantity: number;
+  reservedQuantity?: number;
+  quarantineQuantity?: number;
+  totalQuantity?: number;
+  totalPhysicalQuantity?: number;
+  totalValuation?: number;
+}
+
+// ==========================================
+// SALES & FULFILLMENT DOMAIN TYPES (INCREMENT 1.0)
+// ==========================================
+
+export type SalesOrderStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'APPROVED'
+  | 'POSTED'
+  | 'REJECTED'
+  | 'CANCELLED'
+  | 'CLOSED';
+
+export interface SalesOrder {
+  id: string;
+  companyId: string;
+  branchId?: string | null;
+  soNumber: string;
+  customerId: string;
+  orderDate: string;
+  expectedDeliveryDate?: string | null;
+  status: SalesOrderStatus;
+  currencyCode: string;
+  exchangeRate: number;
+  subtotal: number;
+  taxTotal: number;
+  grandTotal: number;
+  notes?: string | null;
+  createdBy?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  postedBy?: string | null;
+  postedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  customer?: BusinessPartner | null;
+  branch?: Branch | null;
+  lines?: SalesOrderLine[];
+}
+
+export interface SalesOrderLine {
+  id: string;
+  salesOrderId: string;
+  lineNumber: number;
+  itemId: string;
+  warehouseId: string;
+  uomId: string;
+  orderedQuantity: number;
+  conversionFactor: number;
+  baseQuantity: number;
+  unitPrice: number;
+  discountRate: number;
+  discountAmount: number;
+  taxRate: number;
+  taxAmount: number;
+  lineTotal: number;
+  deliveredQuantity?: number;
+  reservedQuantity?: number;
+  remainingQuantity?: number;
+  createdAt: string;
+  updatedAt: string;
+  item?: Item | null;
+  warehouse?: Warehouse | null;
+  uom?: UnitOfMeasure | null;
+}
+
+export type SalesReservationStatus =
+  | 'ACTIVE'
+  | 'FULFILLED'
+  | 'RELEASED'
+  | 'CANCELLED';
+
+export interface SalesReservation {
+  id: string;
+  companyId: string;
+  branchId?: string | null;
+  salesOrderId: string;
+  salesOrderLineId: string;
+  itemId: string;
+  warehouseId: string;
+  batchId?: string | null;
+  uomId: string;
+  reservedQuantity: number;
+  fulfilledQuantity: number;
+  releasedQuantity: number;
+  status: SalesReservationStatus;
+  createdBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  salesOrder?: SalesOrder | null;
+  item?: Item | null;
+  warehouse?: Warehouse | null;
+  batch?: InventoryBatch | null;
+  uom?: UnitOfMeasure | null;
+}
+
+export type SalesDeliveryStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'POSTED'
+  | 'REVERSED'
+  | 'CANCELLED';
+
+export interface SalesDelivery {
+  id: string;
+  companyId: string;
+  branchId?: string | null;
+  deliveryNumber: string;
+  salesOrderId?: string | null;
+  customerId: string;
+  deliveryDate: string;
+  status: SalesDeliveryStatus;
+  notes?: string | null;
+  createdBy?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  postedBy?: string | null;
+  postedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  customer?: BusinessPartner | null;
+  salesOrder?: SalesOrder | null;
+  lines?: SalesDeliveryLine[];
+}
+
+export interface SalesDeliveryLine {
+  id: string;
+  deliveryId: string;
+  salesOrderLineId?: string | null;
+  lineNumber: number;
+  itemId: string;
+  warehouseId: string;
+  uomId: string;
+  deliveredQuantity: number;
+  conversionFactor: number;
+  baseQuantity: number;
+  isReserved: boolean;
+  createdAt: string;
+  item?: Item | null;
+  warehouse?: Warehouse | null;
+  uom?: UnitOfMeasure | null;
+  batchAllocations?: SalesDeliveryBatchAllocation[];
+}
+
+export interface SalesDeliveryBatchAllocation {
+  id: string;
+  deliveryLineId: string;
+  batchId: string;
+  quantity: number;
+  createdAt: string;
+  batch?: InventoryBatch | null;
+}
+
+export type SalesInvoiceStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'POSTED'
+  | 'REVERSED'
+  | 'CANCELLED';
+
+export interface SalesInvoice {
+  id: string;
+  companyId: string;
+  branchId?: string | null;
+  invoiceNumber: string;
+  customerId: string;
+  salesOrderId?: string | null;
+  deliveryId?: string | null;
+  invoiceDate: string;
+  dueDate?: string | null;
+  status: SalesInvoiceStatus;
+  currencyCode: string;
+  exchangeRate: number;
+  subtotal: number;
+  discountTotal: number;
+  taxTotal: number;
+  grandTotal: number;
+  notes?: string | null;
+  createdBy?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  postedBy?: string | null;
+  postedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  customer?: BusinessPartner | null;
+  salesOrder?: SalesOrder | null;
+  delivery?: SalesDelivery | null;
+  lines?: SalesInvoiceLine[];
+  receivable?: CustomerReceivable | null;
+}
+
+export interface SalesInvoiceLine {
+  id: string;
+  salesInvoiceId: string;
+  salesOrderLineId?: string | null;
+  deliveryLineId?: string | null;
+  lineNumber: number;
+  itemId: string;
+  warehouseId?: string | null;
+  uomId: string;
+  quantity: number;
+  conversionFactor: number;
+  baseQuantity: number;
+  unitPrice: number;
+  discountRate: number;
+  discountAmount: number;
+  taxRate: number;
+  taxAmount: number;
+  lineNet: number;
+  lineTotal: number;
+  createdAt: string;
+  updatedAt: string;
+  item?: Item | null;
+  warehouse?: Warehouse | null;
+  uom?: UnitOfMeasure | null;
+}
+
+export type CustomerReceivableStatus =
+  | 'OPEN'
+  | 'PARTIALLY_PAID'
+  | 'PAID'
+  | 'CANCELLED'
+  | 'REVERSED';
+
+export interface CustomerReceivable {
+  id: string;
+  companyId: string;
+  branchId?: string | null;
+  customerId: string;
+  salesInvoiceId: string;
+  currencyCode: string;
+  invoiceAmount: number;
+  paidAmount: number;
+  outstandingAmount: number;
+  invoiceDate: string;
+  dueDate?: string | null;
+  status: CustomerReceivableStatus;
+  createdAt: string;
+  updatedAt: string;
+  customer?: BusinessPartner | null;
+  invoice?: SalesInvoice | null;
+}
+
+
+
 

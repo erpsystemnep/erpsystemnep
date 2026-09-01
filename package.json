@@ -11,7 +11,7 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "db:verify": "tsx tests/unit/db_verification.test.ts",
-    "test": "tsx tests/unit/increment_0_1.test.ts && tsx tests/unit/increment_0_2.test.ts && tsx tests/unit/increment_0_3.test.ts && tsx tests/unit/increment_0_4.test.ts && tsx tests/unit/increment_0_5.test.ts && tsx tests/unit/increment_0_6.test.ts && tsx tests/unit/increment_0_7.test.ts && tsx tests/unit/increment_0_8.test.ts && tsx tests/unit/db_verification.test.ts"
+    "test": "tsx tests/unit/increment_0_1.test.ts && tsx tests/unit/increment_0_2.test.ts && tsx tests/unit/increment_0_3.test.ts && tsx tests/unit/increment_0_4.test.ts && tsx tests/unit/increment_0_5.test.ts && tsx tests/unit/increment_0_6.test.ts && tsx tests/unit/increment_0_7.test.ts && tsx tests/unit/increment_0_8.test.ts && tsx tests/unit/increment_0_9.test.ts && tsx tests/unit/increment_1_0.test.ts && tsx tests/unit/db_verification.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

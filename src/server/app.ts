@@ -5,6 +5,9 @@ import { createOrgRouter } from './modules/org/routes/org.routes.js';
 import { createNumberingRouter } from './modules/numbering/routes/numbering.routes.js';
 import { createAuditRouter } from './modules/audit/routes/audit.routes.js';
 import { createMasterRouter } from './modules/master/routes/master.routes.js';
+import { createPurchaseRouter } from './modules/purchase/routes/purchase.routes.js';
+import { createInventoryRouter } from './modules/inventory/routes/inventory.routes.js';
+import { createSalesRouter } from './modules/sales/routes/index.js';
 import { checkDatabaseHealth } from './db/connection.js';
 import { config } from './config.js';
 import { AppError } from '../shared/errors/AppError.js';
@@ -50,6 +53,18 @@ export function createApp() {
   // Master Data Domain Routes (Increment 0.8)
   app.use('/api/v1/master', createMasterRouter());
   app.use('/api/master', createMasterRouter());
+
+  // Purchasing & Procurement Domain Routes (Increment 0.9)
+  app.use('/api/v1/purchase', createPurchaseRouter());
+  app.use('/api/purchase', createPurchaseRouter());
+
+  // Inventory & Stock Ledger Domain Routes (Increment 0.9)
+  app.use('/api/v1/inventory', createInventoryRouter());
+  app.use('/api/inventory', createInventoryRouter());
+
+  // Sales & Fulfillment Domain Routes (Increment 1.0)
+  app.use('/api/v1/sales', createSalesRouter());
+  app.use('/api/sales', createSalesRouter());
 
   // Global Error Handler
   app.use((err: any, req: Request, res: Response, next: NextFunction) => {

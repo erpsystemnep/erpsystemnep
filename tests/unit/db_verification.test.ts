@@ -92,9 +92,27 @@ export async function runDatabaseVerificationTests() {
     'uoms',
     'items',
     'item_uom_conversions',
+    'purchase_orders',
+    'purchase_order_lines',
+    'purchase_receipts',
+    'purchase_receipt_lines',
+    'inventory_batches',
+    'qc_inspections',
+    'purchase_returns',
+    'purchase_return_lines',
+    'stock_ledger',
+    'sales_orders',
+    'sales_order_lines',
+    'sales_reservations',
+    'sales_deliveries',
+    'sales_delivery_lines',
+    'sales_delivery_batch_allocations',
+    'sales_invoices',
+    'sales_invoice_lines',
+    'customer_receivables',
   ];
 
-  await test('All 18 approved foundation & master tables exist in the database', async () => {
+  await test('All 36 approved foundation, purchasing, inventory, sales & invoicing tables exist in the database', async () => {
     const res = await pool.query(`
       SELECT table_name 
       FROM information_schema.tables 

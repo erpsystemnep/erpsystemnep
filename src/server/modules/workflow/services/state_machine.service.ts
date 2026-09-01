@@ -69,7 +69,128 @@ export class StateMachineEngine {
           description: 'Reject purchase order',
         },
         { from: 'DRAFT', to: 'CANCELLED', action: 'cancel', description: 'Cancel draft PO' },
+        { from: 'SUBMITTED', to: 'CANCELLED', action: 'cancel', description: 'Cancel submitted PO' },
         { from: 'APPROVED', to: 'CANCELLED', action: 'cancel', description: 'Cancel approved PO' },
+      ],
+    });
+
+    // 2b. Purchase Receipt Workflow (Goods Receipt Note)
+    this.registerStateMachine({
+      documentType: 'PURCHASE_RECEIPT',
+      initialState: 'DRAFT',
+      allowReversal: true,
+      allowedTransitions: [
+        { from: 'DRAFT', to: 'SUBMITTED', action: 'submit', description: 'Submit purchase receipt for review' },
+        {
+          from: 'SUBMITTED',
+          to: 'APPROVED',
+          action: 'approve',
+          requiredPermission: 'purchase.receipt.approve',
+          requiresSoD: true,
+          description: 'Approve purchase receipt',
+        },
+        {
+          from: 'SUBMITTED',
+          to: 'REJECTED',
+          action: 'reject',
+          requiredPermission: 'purchase.receipt.reject',
+          description: 'Reject purchase receipt',
+        },
+        {
+          from: 'APPROVED',
+          to: 'POSTED',
+          action: 'post',
+          requiredPermission: 'purchase.receipt.post',
+          requiresSoD: true,
+          description: 'Post purchase receipt to inventory ledger (immutable)',
+        },
+        {
+          from: 'POSTED',
+          to: 'REVERSED',
+          action: 'reverse',
+          requiredPermission: 'purchase.receipt.reverse',
+          description: 'Reverse posted purchase receipt with offset movements',
+        },
+        { from: 'DRAFT', to: 'CANCELLED', action: 'cancel', description: 'Cancel draft receipt' },
+        { from: 'SUBMITTED', to: 'CANCELLED', action: 'cancel', description: 'Cancel submitted receipt' },
+        { from: 'APPROVED', to: 'CANCELLED', action: 'cancel', description: 'Cancel approved receipt' },
+      ],
+    });
+
+    // 2c. Quality Control (QC) Inspection Workflow
+    this.registerStateMachine({
+      documentType: 'QC_INSPECTION',
+      initialState: 'DRAFT',
+      allowReversal: false,
+      allowedTransitions: [
+        { from: 'DRAFT', to: 'SUBMITTED', action: 'submit', description: 'Submit QC inspection results' },
+        {
+          from: 'SUBMITTED',
+          to: 'APPROVED',
+          action: 'approve',
+          requiredPermission: 'inventory.qc.approve',
+          requiresSoD: true,
+          description: 'Approve QC inspection findings',
+        },
+        {
+          from: 'SUBMITTED',
+          to: 'REJECTED',
+          action: 'reject',
+          requiredPermission: 'inventory.qc.reject',
+          description: 'Reject QC inspection findings',
+        },
+        {
+          from: 'APPROVED',
+          to: 'POSTED',
+          action: 'post',
+          requiredPermission: 'inventory.qc.post',
+          requiresSoD: true,
+          description: 'Post QC release / restriction to inventory ledger',
+        },
+        { from: 'DRAFT', to: 'CANCELLED', action: 'cancel', description: 'Cancel draft QC inspection' },
+        { from: 'SUBMITTED', to: 'CANCELLED', action: 'cancel', description: 'Cancel submitted QC inspection' },
+      ],
+    });
+
+    // 2d. Purchase Return Workflow
+    this.registerStateMachine({
+      documentType: 'PURCHASE_RETURN',
+      initialState: 'DRAFT',
+      allowReversal: true,
+      allowedTransitions: [
+        { from: 'DRAFT', to: 'SUBMITTED', action: 'submit', description: 'Submit purchase return' },
+        {
+          from: 'SUBMITTED',
+          to: 'APPROVED',
+          action: 'approve',
+          requiredPermission: 'purchase.return.approve',
+          requiresSoD: true,
+          description: 'Approve purchase return',
+        },
+        {
+          from: 'SUBMITTED',
+          to: 'REJECTED',
+          action: 'reject',
+          requiredPermission: 'purchase.return.reject',
+          description: 'Reject purchase return',
+        },
+        {
+          from: 'APPROVED',
+          to: 'POSTED',
+          action: 'post',
+          requiredPermission: 'purchase.return.post',
+          requiresSoD: true,
+          description: 'Post purchase return stock deductions',
+        },
+        {
+          from: 'POSTED',
+          to: 'REVERSED',
+          action: 'reverse',
+          requiredPermission: 'purchase.return.reverse',
+          description: 'Reverse posted purchase return',
+        },
+        { from: 'DRAFT', to: 'CANCELLED', action: 'cancel', description: 'Cancel draft purchase return' },
+        { from: 'SUBMITTED', to: 'CANCELLED', action: 'cancel', description: 'Cancel submitted purchase return' },
       ],
     });
 
@@ -95,8 +216,103 @@ export class StateMachineEngine {
           requiredPermission: 'sales.order.reject',
           description: 'Reject sales order',
         },
+        {
+          from: 'APPROVED',
+          to: 'POSTED',
+          action: 'post',
+          requiredPermission: 'sales.order.post',
+          requiresSoD: true,
+          description: 'Post / Confirm sales order for fulfillment',
+        },
         { from: 'DRAFT', to: 'CANCELLED', action: 'cancel', description: 'Cancel draft SO' },
+        { from: 'SUBMITTED', to: 'CANCELLED', action: 'cancel', description: 'Cancel submitted SO' },
         { from: 'APPROVED', to: 'CANCELLED', action: 'cancel', description: 'Cancel approved SO' },
+      ],
+    });
+
+    // 3b. Sales Delivery Workflow (Goods Delivery Note / Fulfillment)
+    this.registerStateMachine({
+      documentType: 'SALES_DELIVERY',
+      initialState: 'DRAFT',
+      allowReversal: true,
+      allowedTransitions: [
+        { from: 'DRAFT', to: 'SUBMITTED', action: 'submit', description: 'Submit sales delivery for review' },
+        {
+          from: 'SUBMITTED',
+          to: 'APPROVED',
+          action: 'approve',
+          requiredPermission: 'sales.delivery.approve',
+          requiresSoD: true,
+          description: 'Approve sales delivery',
+        },
+        {
+          from: 'SUBMITTED',
+          to: 'REJECTED',
+          action: 'reject',
+          requiredPermission: 'sales.delivery.reject',
+          description: 'Reject sales delivery',
+        },
+        {
+          from: 'APPROVED',
+          to: 'POSTED',
+          action: 'post',
+          requiredPermission: 'sales.delivery.post',
+          requiresSoD: true,
+          description: 'Post sales delivery to inventory ledger (deduct physical stock)',
+        },
+        {
+          from: 'POSTED',
+          to: 'REVERSED',
+          action: 'reverse',
+          requiredPermission: 'sales.delivery.reverse',
+          description: 'Reverse posted sales delivery with compensating inventory ledger movements',
+        },
+        { from: 'DRAFT', to: 'CANCELLED', action: 'cancel', description: 'Cancel draft sales delivery' },
+        { from: 'SUBMITTED', to: 'CANCELLED', action: 'cancel', description: 'Cancel submitted sales delivery' },
+        { from: 'APPROVED', to: 'CANCELLED', action: 'cancel', description: 'Cancel approved sales delivery' },
+      ],
+    });
+
+    // 3c. Sales Invoice Workflow (Accounts Receivable & Billing)
+    this.registerStateMachine({
+      documentType: 'SALES_INVOICE',
+      initialState: 'DRAFT',
+      allowReversal: true,
+      allowedTransitions: [
+        { from: 'DRAFT', to: 'SUBMITTED', action: 'submit', description: 'Submit sales invoice for approval' },
+        {
+          from: 'SUBMITTED',
+          to: 'APPROVED',
+          action: 'approve',
+          requiredPermission: 'sales.invoice.approve',
+          requiresSoD: true,
+          description: 'Approve sales invoice',
+        },
+        {
+          from: 'SUBMITTED',
+          to: 'REJECTED',
+          action: 'reject',
+          requiredPermission: 'sales.invoice.reject',
+          description: 'Reject sales invoice',
+        },
+        {
+          from: 'APPROVED',
+          to: 'POSTED',
+          action: 'post',
+          requiredPermission: 'sales.invoice.post',
+          requiresSoD: true,
+          description: 'Post sales invoice to create customer receivable (immutable)',
+        },
+        {
+          from: 'POSTED',
+          to: 'REVERSED',
+          action: 'reverse',
+          requiredPermission: 'sales.invoice.reverse',
+          description: 'Reverse posted sales invoice and receivable',
+        },
+        { from: 'DRAFT', to: 'CANCELLED', action: 'cancel', description: 'Cancel draft invoice' },
+        { from: 'SUBMITTED', to: 'CANCELLED', action: 'cancel', description: 'Cancel submitted invoice' },
+        { from: 'APPROVED', to: 'CANCELLED', action: 'cancel', description: 'Cancel approved invoice' },
       ],
     });
 
