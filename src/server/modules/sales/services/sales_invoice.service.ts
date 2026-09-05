@@ -1,6 +1,9 @@
 import pg from 'pg';
 import { SalesInvoiceRepository, CreateSalesInvoiceDbHeaderInput, CreateSalesInvoiceLineDbInput } from '../repositories/sales_invoice.repository.js';
 import { CustomerReceivableRepository } from '../repositories/customer_receivable.repository.js';
+import { AccountingJournalRepository } from '../../accounting/repositories/accounting_journal.repository.js';
+import { ChartOfAccountsRepository } from '../../accounting/repositories/chart_of_accounts.repository.js';
+import { TaxTransactionRepository } from '../../accounting/repositories/tax_transaction.repository.js';
 import { NumberingService } from '../../numbering/services/numbering.service.js';
 import { StateMachineEngine } from '../../workflow/services/state_machine.service.js';
 import { AuditService } from '../../audit/services/audit.service.js';
@@ -20,6 +23,9 @@ export class SalesInvoiceService {
   constructor(
     private invoiceRepo: SalesInvoiceRepository = new SalesInvoiceRepository(),
     private receivableRepo: CustomerReceivableRepository = new CustomerReceivableRepository(),
+    private journalRepo: AccountingJournalRepository = new AccountingJournalRepository(),
+    private coaRepo: ChartOfAccountsRepository = new ChartOfAccountsRepository(),
+    private taxRepo: TaxTransactionRepository = new TaxTransactionRepository(),
     private numbering: NumberingService = new NumberingService(),
     private stateMachine: StateMachineEngine = new StateMachineEngine(),
     private audit: AuditService = new AuditService()
@@ -237,6 +243,7 @@ export class SalesInvoiceService {
           taxAmount: lineTax,
           lineNet: netAmount,
           lineTotal,
+          revenueAccountId: line.revenueAccountId || null,
         });
       }
 
@@ -420,7 +427,10 @@ export class SalesInvoiceService {
         },
       });
 
-      // 2. Verify Customer Still Active & Valid
+      // 2. Lock invoice row FOR UPDATE
+      await this.invoiceRepo.findByIdForUpdate(id, companyId, dbClient);
+
+      // 3. Verify Customer Still Active & Valid
       const custRes = await dbClient.query(
         `SELECT id, is_active FROM business_partners WHERE id = $1 AND company_id = $2`,
         [invoice.customerId, companyId]
@@ -429,16 +439,256 @@ export class SalesInvoiceService {
         throw AppError.badRequest(`Customer for invoice '${invoice.invoiceNumber}' is invalid or inactive`);
       }
 
-      // 3. Mark Invoice as POSTED
+      // 4. Resolve Accounts:
+      // AR Account (Asset, code 1100 or matching receivable)
+      const accounts = await this.coaRepo.list(companyId, { isActive: true, isGroup: false }, dbClient);
+
+      let arAccount = accounts.find(
+        (a) =>
+          a.accountCode === '1100' ||
+          a.accountName.toUpperCase().includes('ACCOUNTS RECEIVABLE') ||
+          a.accountName.toUpperCase().includes('TRADE DEBTORS')
+      ) || accounts.find((a) => a.accountType === 'ASSET');
+
+      if (!arAccount) {
+        arAccount = await this.coaRepo.create(
+          {
+            companyId,
+            accountCode: '1100',
+            accountName: 'Accounts Receivable',
+            accountType: 'ASSET',
+            isGroup: false,
+            isActive: true,
+            currencyCode: invoice.currencyCode,
+            description: 'Customer Accounts Receivable Control Account',
+          },
+          dbClient
+        );
+      }
+
+      // Revenue Account (Revenue, code 4000 or default)
+      let defaultRevenueAccount = accounts.find(
+        (a) =>
+          a.accountCode === '4000' ||
+          a.accountName.toUpperCase().includes('SALES REVENUE') ||
+          a.accountType === 'REVENUE'
+      );
+
+      if (!defaultRevenueAccount) {
+        defaultRevenueAccount = await this.coaRepo.create(
+          {
+            companyId,
+            accountCode: '4000',
+            accountName: 'Sales Revenue',
+            accountType: 'REVENUE',
+            isGroup: false,
+            isActive: true,
+            currencyCode: invoice.currencyCode,
+            description: 'General Sales Revenue Account',
+          },
+          dbClient
+        );
+      }
+
+      // Output Tax Account (Liability, code 2200 or default) if taxTotal > 0
+      let outputTaxAccount = null;
+      if (invoice.taxTotal > 0) {
+        outputTaxAccount = accounts.find(
+          (a) =>
+            a.accountCode === '2200' ||
+            a.accountName.toUpperCase().includes('OUTPUT TAX') ||
+            a.accountName.toUpperCase().includes('TAX PAYABLE') ||
+            a.accountName.toUpperCase().includes('VAT PAYABLE')
+        );
+
+        if (!outputTaxAccount) {
+          outputTaxAccount = await this.coaRepo.create(
+            {
+              companyId,
+              accountCode: '2200',
+              accountName: 'Output Tax Payable',
+              accountType: 'LIABILITY',
+              isGroup: false,
+              isActive: true,
+              currencyCode: invoice.currencyCode,
+              description: 'Sales Output Tax (VAT) Payable Account',
+            },
+            dbClient
+          );
+        }
+      }
+
+      // 5. Generate Accounting Journal
+      let journalNumber = '';
+      try {
+        const numResult = await this.numbering.generateNextNumber(
+          {
+            companyId,
+            branchId: invoice.branchId || null,
+            documentType: 'JOURNAL',
+          },
+          ctx,
+          dbClient
+        );
+        journalNumber = numResult.formattedNumber;
+      } catch {
+        journalNumber = `JV-SINV-${invoice.invoiceNumber}`;
+      }
+
+      const exchangeRate = invoice.exchangeRate || 1.0;
+      const baseGrandTotal = Math.round(invoice.grandTotal * exchangeRate * 10000) / 10000;
+      const baseTaxTotal = Math.round(invoice.taxTotal * exchangeRate * 10000) / 10000;
+      const netRevenueTotal = Math.round((invoice.subtotal - invoice.discountTotal) * 10000) / 10000;
+      const baseRevenueTotal = Math.round(netRevenueTotal * exchangeRate * 10000) / 10000;
+
+      const journalLines: any[] = [];
+      let lineNum = 1;
+
+      // DEBIT: Accounts Receivable
+      journalLines.push({
+        lineNumber: lineNum++,
+        accountId: arAccount.id,
+        partnerId: invoice.customerId,
+        debit: invoice.grandTotal,
+        credit: 0,
+        currencyCode: invoice.currencyCode,
+        exchangeRate,
+        baseDebit: baseGrandTotal,
+        baseCredit: 0,
+        description: `Trade receivable for sales invoice ${invoice.invoiceNumber}`,
+      });
+
+      // CREDIT: Sales Revenue
+      const lineMap = new Map<string, { amount: number; baseAmount: number }>();
+      for (const line of invoice.lines || []) {
+        const accId = line.revenueAccountId || defaultRevenueAccount.id;
+        const net = Math.round(Number(line.lineNet) * 10000) / 10000;
+        const baseNet = Math.round(net * exchangeRate * 10000) / 10000;
+        const current = lineMap.get(accId) || { amount: 0, baseAmount: 0 };
+        lineMap.set(accId, {
+          amount: Math.round((current.amount + net) * 10000) / 10000,
+          baseAmount: Math.round((current.baseAmount + baseNet) * 10000) / 10000,
+        });
+      }
+
+      if (lineMap.size === 0) {
+        lineMap.set(defaultRevenueAccount.id, {
+          amount: netRevenueTotal,
+          baseAmount: baseRevenueTotal,
+        });
+      }
+
+      for (const [revAccId, amounts] of lineMap.entries()) {
+        journalLines.push({
+          lineNumber: lineNum++,
+          accountId: revAccId,
+          debit: 0,
+          credit: amounts.amount,
+          currencyCode: invoice.currencyCode,
+          exchangeRate,
+          baseDebit: 0,
+          baseCredit: amounts.baseAmount,
+          description: `Sales revenue for invoice ${invoice.invoiceNumber}`,
+        });
+      }
+
+      // CREDIT: Output Tax Payable
+      if (invoice.taxTotal > 0 && outputTaxAccount) {
+        journalLines.push({
+          lineNumber: lineNum++,
+          accountId: outputTaxAccount.id,
+          debit: 0,
+          credit: invoice.taxTotal,
+          currencyCode: invoice.currencyCode,
+          exchangeRate,
+          baseDebit: 0,
+          baseCredit: baseTaxTotal,
+          description: `Output tax payable for sales invoice ${invoice.invoiceNumber}`,
+        });
+      }
+
+      // Balancing sanity check
+      let sumBaseDebit = 0;
+      let sumBaseCredit = 0;
+      for (const l of journalLines) {
+        sumBaseDebit += l.baseDebit;
+        sumBaseCredit += l.baseCredit;
+      }
+      const roundingDiff = Math.round((sumBaseDebit - sumBaseCredit) * 10000) / 10000;
+      if (roundingDiff !== 0 && journalLines.length > 1) {
+        journalLines[1].baseCredit = Math.round((journalLines[1].baseCredit + roundingDiff) * 10000) / 10000;
+        journalLines[1].credit = Math.round((journalLines[1].credit + roundingDiff / exchangeRate) * 10000) / 10000;
+      }
+
+      const totalDebit = journalLines.reduce((acc, l) => acc + l.debit, 0);
+      const totalCredit = journalLines.reduce((acc, l) => acc + l.credit, 0);
+
+      const journal = await this.journalRepo.create(
+        {
+          companyId,
+          branchId: invoice.branchId || null,
+          journalNumber,
+          postingDate: invoice.invoiceDate,
+          sourceDocumentType: 'SALES_INVOICE',
+          sourceDocumentId: invoice.id,
+          description: `Sales invoice posting ${invoice.invoiceNumber}`,
+          status: 'POSTED',
+          totalDebit: Math.round(totalDebit * 10000) / 10000,
+          totalCredit: Math.round(totalCredit * 10000) / 10000,
+          currencyCode: invoice.currencyCode,
+          createdBy: ctx.userId,
+          approvedBy: ctx.userId,
+          approvedAt: new Date().toISOString(),
+          postedBy: ctx.userId,
+          postedAt: new Date().toISOString(),
+          lines: journalLines,
+        },
+        dbClient
+      );
+
+      // 6. Record Tax Transactions (Tax Subledger)
+      if (invoice.taxTotal > 0 && invoice.lines) {
+        for (const line of invoice.lines) {
+          if (line.taxAmount > 0) {
+            await this.taxRepo.create(
+              {
+                companyId,
+                branchId: invoice.branchId || null,
+                taxType: 'OUTPUT_TAX',
+                sourceType: 'SALES_INVOICE',
+                sourceId: invoice.id,
+                sourceLineId: line.id,
+                taxCode: line.taxRate ? `${line.taxRate}%` : 'OUTPUT_TAX',
+                taxRate: line.taxRate,
+                taxableAmount: line.lineNet,
+                taxAmount: line.taxAmount,
+                currencyCode: invoice.currencyCode,
+                exchangeRate,
+                baseTaxableAmount: Math.round(line.lineNet * exchangeRate * 10000) / 10000,
+                baseTaxAmount: Math.round(line.taxAmount * exchangeRate * 10000) / 10000,
+                accountingDate: invoice.invoiceDate,
+                journalId: journal.id,
+                status: 'POSTED',
+              },
+              dbClient
+            );
+          }
+        }
+      }
+
+      // 7. Mark Invoice as POSTED and link journal
       await this.invoiceRepo.updateStatus(
         id,
         companyId,
         'POSTED',
-        { postedBy: ctx.userId },
+        {
+          postedBy: ctx.userId,
+          journalId: journal.id,
+        },
         dbClient
       );
 
-      // 4. Create Authoritative Customer Receivable Record (Atomic in same TX)
+      // 8. Create Authoritative Customer Receivable Record (Atomic in same TX)
       await this.receivableRepo.create(
         {
           companyId,
@@ -456,7 +706,7 @@ export class SalesInvoiceService {
         dbClient
       );
 
-      // 5. Audit Log (Financial Document Posting)
+      // 9. Audit Log (Financial Document Posting)
       await this.audit.logPost(
         'sales',
         'SalesInvoice',
@@ -491,16 +741,116 @@ export class SalesInvoiceService {
         },
       });
 
-      // 2. Mark Invoice as REVERSED
-      await this.invoiceRepo.updateStatus(id, companyId, 'REVERSED', undefined, dbClient);
+      // 2. Lock invoice row FOR UPDATE
+      await this.invoiceRepo.findByIdForUpdate(id, companyId, dbClient);
 
-      // 3. Update Associated Customer Receivable status to REVERSED
+      // 3. Verify that invoice has not been paid / settled
       const receivable = await this.receivableRepo.findByInvoiceId(id, companyId, dbClient);
+      if (
+        receivable &&
+        (receivable.paidAmount > 0 ||
+          receivable.status === 'PAID' ||
+          receivable.status === 'PARTIALLY_PAID')
+      ) {
+        throw AppError.badRequest(
+          `Cannot reverse sales invoice '${invoice.invoiceNumber}': payments have already been received or applied to this receivable`
+        );
+      }
+
+      // 4. Create Reversal General Ledger Journal
+      let reversalJournalId: string | null = null;
+      if (invoice.journalId) {
+        const origJournal = await this.journalRepo.findById(invoice.journalId, companyId, dbClient);
+        if (origJournal && origJournal.status === 'POSTED') {
+          const origLines = await this.journalRepo.getLines(origJournal.id, dbClient);
+
+          let revJournalNumber = '';
+          try {
+            const numResult = await this.numbering.generateNextNumber(
+              {
+                companyId,
+                branchId: invoice.branchId || null,
+                documentType: 'JOURNAL',
+              },
+              ctx,
+              dbClient
+            );
+            revJournalNumber = numResult.formattedNumber;
+          } catch {
+            revJournalNumber = `REV-${origJournal.journalNumber}`;
+          }
+
+          const reversalLines = origLines.map((l, idx) => ({
+            lineNumber: idx + 1,
+            accountId: l.accountId,
+            partnerId: l.partnerId || null,
+            debit: l.credit, // Invert
+            credit: l.debit, // Invert
+            currencyCode: l.currencyCode,
+            exchangeRate: l.exchangeRate,
+            baseDebit: l.baseCredit, // Invert
+            baseCredit: l.baseDebit, // Invert
+            description: `Reversal of line ${l.lineNumber} (${origJournal.journalNumber}) - ${reason}`,
+          }));
+
+          const revJournal = await this.journalRepo.create(
+            {
+              companyId,
+              branchId: invoice.branchId || null,
+              journalNumber: revJournalNumber,
+              postingDate: new Date().toISOString().split('T')[0],
+              sourceDocumentType: 'SALES_INVOICE_REVERSAL',
+              sourceDocumentId: invoice.id,
+              description: `Compensating reversal of journal ${origJournal.journalNumber} for invoice ${invoice.invoiceNumber}: ${reason}`,
+              status: 'POSTED',
+              totalDebit: origJournal.totalCredit,
+              totalCredit: origJournal.totalDebit,
+              currencyCode: origJournal.currencyCode,
+              createdBy: ctx.userId,
+              approvedBy: ctx.userId,
+              approvedAt: new Date().toISOString(),
+              postedBy: ctx.userId,
+              postedAt: new Date().toISOString(),
+              lines: reversalLines,
+            },
+            dbClient
+          );
+
+          reversalJournalId = revJournal.id;
+
+          // Link reversal on original journal
+          await dbClient.query(
+            `UPDATE accounting_journals SET reversal_journal_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND company_id = $3`,
+            [revJournal.id, origJournal.id, companyId]
+          );
+        }
+      }
+
+      // 5. Update Tax Transactions to REVERSED
+      await this.taxRepo.updateStatusBySource(
+        'SALES_INVOICE',
+        invoice.id,
+        companyId,
+        'REVERSED',
+        reversalJournalId,
+        dbClient
+      );
+
+      // 6. Update Associated Customer Receivable status to REVERSED
       if (receivable) {
         await this.receivableRepo.updateStatus(receivable.id, companyId, 'REVERSED', dbClient);
       }
 
-      // 4. Audit Log
+      // 7. Mark Invoice as REVERSED
+      await this.invoiceRepo.updateStatus(
+        id,
+        companyId,
+        'REVERSED',
+        { reversedBy: ctx.userId },
+        dbClient
+      );
+
+      // 8. Audit Log
       await this.audit.logReverse('sales', 'SalesInvoice', id, ctx, reason, dbClient);
 
       return this.getById(id, ctx, dbClient);

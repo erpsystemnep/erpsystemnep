@@ -13,6 +13,7 @@ export const SalesInvoiceLineSchema = z.object({
   unitPrice: z.number().min(0, 'Unit price must be non-negative'),
   discountRate: z.number().min(0).max(100).default(0),
   taxRate: z.number().min(0).default(0),
+  revenueAccountId: z.string().uuid().optional().nullable(),
 });
 
 export const CreateSalesInvoiceSchema = z.object({

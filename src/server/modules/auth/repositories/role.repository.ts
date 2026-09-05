@@ -97,11 +97,13 @@ export class RoleRepository {
     await executor.query('DELETE FROM role_permissions WHERE role_id = $1', [roleId]);
 
     // Insert new permissions
-    for (const perm of permissions) {
-      if (perm === '*') continue; // Wildcard is managed conceptually by role definition
+    const validPerms = permissions.filter((perm) => perm !== '*');
+    if (validPerms.length > 0) {
       await executor.query(
-        'INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-        [roleId, perm]
+        `INSERT INTO role_permissions (role_id, permission_id)
+         SELECT $1, unnest($2::text[])
+         ON CONFLICT DO NOTHING`,
+        [roleId, validPerms]
       );
     }
   }

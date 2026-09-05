@@ -857,12 +857,16 @@ export interface SalesInvoice {
   approvedAt?: string | null;
   postedBy?: string | null;
   postedAt?: string | null;
+  reversedBy?: string | null;
+  reversedAt?: string | null;
+  journalId?: string | null;
   createdAt: string;
   updatedAt: string;
   customer?: BusinessPartner | null;
   salesOrder?: SalesOrder | null;
   delivery?: SalesDelivery | null;
   lines?: SalesInvoiceLine[];
+  journal?: AccountingJournal | null;
   receivable?: CustomerReceivable | null;
 }
 
@@ -885,11 +889,13 @@ export interface SalesInvoiceLine {
   taxAmount: number;
   lineNet: number;
   lineTotal: number;
+  revenueAccountId?: string | null;
   createdAt: string;
   updatedAt: string;
   item?: Item | null;
   warehouse?: Warehouse | null;
   uom?: UnitOfMeasure | null;
+  revenueAccount?: ChartOfAccount | null;
 }
 
 export type CustomerReceivableStatus =
@@ -918,6 +924,380 @@ export interface CustomerReceivable {
   invoice?: SalesInvoice | null;
 }
 
+export type AccountType = 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'EXPENSE';
 
+export interface ChartOfAccount {
+  id: string;
+  companyId: string;
+  accountCode: string;
+  accountName: string;
+  accountType: AccountType;
+  parentAccountId?: string | null;
+  isGroup: boolean;
+  isActive: boolean;
+  currencyCode: string;
+  description?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  parentAccount?: ChartOfAccount | null;
+  childAccounts?: ChartOfAccount[];
+}
 
+export type JournalStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'POSTED'
+  | 'REVERSED'
+  | 'CANCELLED';
+
+export interface AccountingJournal {
+  id: string;
+  companyId: string;
+  branchId?: string | null;
+  journalNumber: string;
+  postingDate: string;
+  sourceDocumentType: string;
+  sourceDocumentId?: string | null;
+  description?: string | null;
+  status: JournalStatus;
+  totalDebit: number;
+  totalCredit: number;
+  currencyCode: string;
+  createdBy?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  postedBy?: string | null;
+  postedAt?: string | null;
+  reversalJournalId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lines?: AccountingJournalLine[];
+}
+
+export interface AccountingJournalLine {
+  id: string;
+  journalId: string;
+  lineNumber: number;
+  accountId: string;
+  partnerId?: string | null;
+  debit: number;
+  credit: number;
+  currencyCode: string;
+  exchangeRate: number;
+  baseDebit: number;
+  baseCredit: number;
+  description?: string | null;
+  createdAt: string;
+  account?: ChartOfAccount | null;
+  partner?: BusinessPartner | null;
+}
+
+export type PaymentMethod = 'CASH' | 'BANK' | 'CHECK' | 'CREDIT_CARD' | 'OTHER';
+
+export type CustomerPaymentStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'POSTED'
+  | 'REVERSED'
+  | 'CANCELLED';
+
+export interface CustomerPaymentAllocation {
+  id: string;
+  paymentId: string;
+  receivableId: string;
+  allocatedAmount: number;
+  allocationDate: string;
+  createdAt: string;
+  receivable?: CustomerReceivable | null;
+}
+
+export interface CustomerPayment {
+  id: string;
+  companyId: string;
+  branchId?: string | null;
+  paymentNumber: string;
+  customerId: string;
+  paymentDate: string;
+  amount: number;
+  currencyCode: string;
+  exchangeRate: number;
+  baseAmount: number;
+  paymentMethod: PaymentMethod;
+  depositAccountId: string;
+  arAccountId?: string | null;
+  referenceNumber?: string | null;
+  status: CustomerPaymentStatus;
+  notes?: string | null;
+  createdBy?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  postedBy?: string | null;
+  postedAt?: string | null;
+  journalId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  customer?: BusinessPartner | null;
+  depositAccount?: ChartOfAccount | null;
+  arAccount?: ChartOfAccount | null;
+  allocations?: CustomerPaymentAllocation[];
+  journal?: AccountingJournal | null;
+}
+
+// ----------------------------------------------------------------------------
+// Increment 1.3: Accounts Payable & Purchase Invoicing Domain Interfaces
+// ----------------------------------------------------------------------------
+
+export type PurchaseInvoiceStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'POSTED'
+  | 'REVERSED'
+  | 'CANCELLED';
+
+export interface PurchaseInvoiceLine {
+  id: string;
+  purchaseInvoiceId: string;
+  purchaseReceiptLineId: string;
+  poLineId?: string | null;
+  lineNumber: number;
+  itemId: string;
+  warehouseId?: string | null;
+  uomId: string;
+  quantity: number;
+  conversionFactor: number;
+  baseQuantity: number;
+  unitPrice: number;
+  discountRate: number;
+  discountAmount: number;
+  taxRate: number;
+  taxAmount: number;
+  lineNet: number;
+  lineTotal: number;
+  expenseAccountId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  item?: Item | null;
+  uom?: UnitOfMeasure | null;
+  warehouse?: Warehouse | null;
+  purchaseReceiptLine?: PurchaseReceiptLine | null;
+  poLine?: PurchaseOrderLine | null;
+  expenseAccount?: ChartOfAccount | null;
+}
+
+export interface PurchaseInvoice {
+  id: string;
+  companyId: string;
+  branchId?: string | null;
+  invoiceNumber: string;
+  supplierInvoiceRef?: string | null;
+  supplierId: string;
+  purchaseOrderId?: string | null;
+  receiptId?: string | null;
+  invoiceDate: string;
+  dueDate?: string | null;
+  status: PurchaseInvoiceStatus;
+  currencyCode: string;
+  exchangeRate: number;
+  subtotal: number;
+  discountTotal: number;
+  taxTotal: number;
+  grandTotal: number;
+  notes?: string | null;
+  createdBy?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  postedBy?: string | null;
+  postedAt?: string | null;
+  reversedBy?: string | null;
+  reversedAt?: string | null;
+  journalId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  supplier?: BusinessPartner | null;
+  purchaseOrder?: PurchaseOrder | null;
+  receipt?: PurchaseReceipt | null;
+  lines?: PurchaseInvoiceLine[];
+  journal?: AccountingJournal | null;
+  payable?: SupplierPayable | null;
+}
+
+export type SupplierPayableStatus =
+  | 'OPEN'
+  | 'PARTIALLY_PAID'
+  | 'PAID'
+  | 'CANCELLED'
+  | 'REVERSED';
+
+export interface SupplierPayable {
+  id: string;
+  companyId: string;
+  branchId?: string | null;
+  supplierId: string;
+  purchaseInvoiceId: string;
+  currencyCode: string;
+  invoiceAmount: number;
+  paidAmount: number;
+  outstandingAmount: number;
+  invoiceDate: string;
+  dueDate?: string | null;
+  status: SupplierPayableStatus;
+  createdAt: string;
+  updatedAt: string;
+  supplier?: BusinessPartner | null;
+  invoice?: PurchaseInvoice | null;
+}
+
+export type SupplierPaymentStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'POSTED'
+  | 'REVERSED'
+  | 'CANCELLED';
+
+export interface SupplierPaymentAllocation {
+  id: string;
+  paymentId: string;
+  payableId: string;
+  allocatedAmount: number;
+  allocationDate: string;
+  createdAt: string;
+  payable?: SupplierPayable | null;
+}
+
+export interface SupplierPayment {
+  id: string;
+  companyId: string;
+  branchId?: string | null;
+  paymentNumber: string;
+  supplierId: string;
+  paymentDate: string;
+  amount: number;
+  currencyCode: string;
+  exchangeRate: number;
+  baseAmount: number;
+  paymentMethod: PaymentMethod;
+  disbursementAccountId: string;
+  apAccountId?: string | null;
+  referenceNumber?: string | null;
+  status: SupplierPaymentStatus;
+  notes?: string | null;
+  createdBy?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  postedBy?: string | null;
+  postedAt?: string | null;
+  reversedBy?: string | null;
+  reversedAt?: string | null;
+  journalId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  supplier?: BusinessPartner | null;
+  disbursementAccount?: ChartOfAccount | null;
+  apAccount?: ChartOfAccount | null;
+  allocations?: SupplierPaymentAllocation[];
+  journal?: AccountingJournal | null;
+}
+
+// ----------------------------------------------------------------------------
+// Increment 1.4: Tax Subledger, Tax Reconciliation & Trial Balance Domain Interfaces
+// ----------------------------------------------------------------------------
+
+export type TaxType = 'INPUT_TAX' | 'OUTPUT_TAX';
+export type TaxSourceType = 'SALES_INVOICE' | 'PURCHASE_INVOICE';
+export type TaxTransactionStatus = 'POSTED' | 'REVERSED' | 'CANCELLED';
+
+export interface TaxTransaction {
+  id: string;
+  companyId: string;
+  branchId?: string | null;
+  taxType: TaxType;
+  sourceType: TaxSourceType;
+  sourceId: string;
+  sourceLineId?: string | null;
+  taxCode?: string | null;
+  taxRate: number;
+  taxableAmount: number;
+  taxAmount: number;
+  currencyCode: string;
+  exchangeRate: number;
+  baseTaxableAmount: number;
+  baseTaxAmount: number;
+  accountingDate: string;
+  journalId?: string | null;
+  journalLineId?: string | null;
+  status: TaxTransactionStatus;
+  reversalJournalId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  journal?: AccountingJournal | null;
+}
+
+export interface TrialBalanceItem {
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  accountType: AccountType;
+  isGroup: boolean;
+  debitTotal: number;
+  creditTotal: number;
+  debitBalance: number;
+  creditBalance: number;
+}
+
+export interface TrialBalanceReport {
+  companyId: string;
+  asOfDate: string;
+  startDate?: string | null;
+  branchId?: string | null;
+  generatedAt: string;
+  items: TrialBalanceItem[];
+  totalDebit: number;
+  totalCredit: number;
+  totalDebitBalance: number;
+  totalCreditBalance: number;
+  isBalanced: boolean;
+}
+
+export interface TaxReconciliationReport {
+  companyId: string;
+  asOfDate?: string | null;
+  generatedAt: string;
+  outputTaxSubledgerTotal: number;
+  outputTaxGlTotal: number;
+  outputTaxDiscrepancy: number;
+  isOutputTaxReconciled: boolean;
+  inputTaxSubledgerTotal: number;
+  inputTaxGlTotal: number;
+  inputTaxDiscrepancy: number;
+  isInputTaxReconciled: boolean;
+  netTaxPosition: number;
+  isFullyReconciled: boolean;
+}
+
+export interface TaxSummaryReport {
+  companyId: string;
+  asOfDate?: string | null;
+  generatedAt: string;
+  totalOutputTaxable: number;
+  totalOutputTax: number;
+  totalInputTaxable: number;
+  totalInputTax: number;
+  netTaxPosition: number;
+  taxCodeBreakdown: Array<{
+    taxCode: string;
+    taxType: TaxType;
+    taxRate: number;
+    taxableAmount: number;
+    taxAmount: number;
+    transactionCount: number;
+  }>;
+}
 

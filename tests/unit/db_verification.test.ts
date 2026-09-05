@@ -110,9 +110,19 @@ export async function runDatabaseVerificationTests() {
     'sales_invoices',
     'sales_invoice_lines',
     'customer_receivables',
+    'chart_of_accounts',
+    'accounting_journals',
+    'accounting_journal_lines',
+    'customer_payments',
+    'customer_payment_allocations',
+    'purchase_invoices',
+    'purchase_invoice_lines',
+    'supplier_payables',
+    'supplier_payments',
+    'supplier_payment_allocations',
   ];
 
-  await test('All 36 approved foundation, purchasing, inventory, sales & invoicing tables exist in the database', async () => {
+  await test('All 46 approved foundation, purchasing, inventory, sales, invoicing, AP & general ledger tables exist in the database', async () => {
     const res = await pool.query(`
       SELECT table_name 
       FROM information_schema.tables 

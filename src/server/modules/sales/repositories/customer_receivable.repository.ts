@@ -154,6 +154,42 @@ export class CustomerReceivableRepository {
     await executor.query(sql, [status, id, companyId]);
   }
 
+  async findForUpdate(id: string, companyId: string, client: pg.PoolClient): Promise<CustomerReceivable | null> {
+    const sql = `
+      SELECT cr.*, bp.partner_code as customer_code, bp.legal_name as customer_name,
+             si.invoice_number, si.status as invoice_status, si.exchange_rate,
+             si.subtotal, si.discount_total, si.tax_total, si.grand_total
+      FROM customer_receivables cr
+      JOIN business_partners bp ON bp.id = cr.customer_id
+      JOIN sales_invoices si ON si.id = cr.sales_invoice_id
+      WHERE cr.id = $1 AND cr.company_id = $2
+      FOR UPDATE OF cr
+    `;
+    const res = await client.query(sql, [id, companyId]);
+    if (res.rows.length === 0) return null;
+    return this.mapRowToEntity(res.rows[0]);
+  }
+
+  async updatePaymentBalances(
+    id: string,
+    companyId: string,
+    paidAmount: number,
+    outstandingAmount: number,
+    status: CustomerReceivableStatus,
+    client: pg.PoolClient
+  ): Promise<CustomerReceivable | null> {
+    const sql = `
+      UPDATE customer_receivables
+      SET paid_amount = $1, outstanding_amount = $2, status = $3, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $4 AND company_id = $5
+      RETURNING *
+    `;
+    const res = await client.query(sql, [paidAmount, outstandingAmount, status, id, companyId]);
+    if (res.rows.length === 0) return null;
+    return this.mapRowToEntity(res.rows[0]);
+  }
+
+
   async list(
     companyId: string,
     filters?: {

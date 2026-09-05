@@ -43,6 +43,7 @@ export interface CreateSalesInvoiceLineDbInput {
   taxAmount: number;
   lineNet: number;
   lineTotal: number;
+  revenueAccountId?: string | null;
 }
 
 export class SalesInvoiceRepository {
@@ -76,6 +77,9 @@ export class SalesInvoiceRepository {
       approvedAt: row.approved_at ? new Date(row.approved_at).toISOString() : null,
       postedBy: row.posted_by || null,
       postedAt: row.posted_at ? new Date(row.posted_at).toISOString() : null,
+      reversedBy: row.reversed_by || null,
+      reversedAt: row.reversed_at ? new Date(row.reversed_at).toISOString() : null,
+      journalId: row.journal_id || null,
       createdAt: new Date(row.created_at).toISOString(),
       updatedAt: new Date(row.updated_at).toISOString(),
       customer: row.customer_name
@@ -148,6 +152,7 @@ export class SalesInvoiceRepository {
       taxAmount: Number(row.tax_amount),
       lineNet: Number(row.line_net),
       lineTotal: Number(row.line_total),
+      revenueAccountId: row.revenue_account_id || null,
       createdAt: new Date(row.created_at).toISOString(),
       updatedAt: new Date(row.updated_at).toISOString(),
       item: row.sku
@@ -241,8 +246,8 @@ export class SalesInvoiceRepository {
           sales_invoice_id, sales_order_line_id, delivery_line_id, line_number,
           item_id, warehouse_id, uom_id, quantity, conversion_factor,
           base_quantity, unit_price, discount_rate, discount_amount,
-          tax_rate, tax_amount, line_net, line_total
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+          tax_rate, tax_amount, line_net, line_total, revenue_account_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         RETURNING *
       `;
       const lineValues = [
@@ -263,6 +268,7 @@ export class SalesInvoiceRepository {
         line.taxAmount,
         line.lineNet,
         line.lineTotal,
+        line.revenueAccountId || null,
       ];
       const lineRes = await executor.query(lineSql, lineValues);
       createdLines.push(this.mapLineRowToEntity(lineRes.rows[0]));
@@ -342,6 +348,8 @@ export class SalesInvoiceRepository {
     metadata?: {
       approvedBy?: string;
       postedBy?: string;
+      reversedBy?: string;
+      journalId?: string;
     },
     client?: pg.PoolClient
   ): Promise<void> {
@@ -358,6 +366,14 @@ export class SalesInvoiceRepository {
       extraSql += `, posted_by = $${idx++}, posted_at = CURRENT_TIMESTAMP`;
       values.push(metadata.postedBy);
     }
+    if (metadata?.reversedBy) {
+      extraSql += `, reversed_by = $${idx++}, reversed_at = CURRENT_TIMESTAMP`;
+      values.push(metadata.reversedBy);
+    }
+    if (metadata?.journalId) {
+      extraSql += `, journal_id = $${idx++}`;
+      values.push(metadata.journalId);
+    }
 
     const sql = `
       UPDATE sales_invoices
@@ -365,6 +381,38 @@ export class SalesInvoiceRepository {
       WHERE id = $2 AND company_id = $3
     `;
     await executor.query(sql, values);
+  }
+
+  async findByIdForUpdate(id: string, companyId: string, client: pg.PoolClient): Promise<SalesInvoice | null> {
+    const sql = `
+      SELECT si.*, bp.partner_code as customer_code, bp.legal_name as customer_name,
+             so.so_number, so.status as so_status,
+             sd.delivery_number, sd.status as delivery_status, sd.delivery_date
+      FROM sales_invoices si
+      JOIN business_partners bp ON bp.id = si.customer_id
+      LEFT JOIN sales_orders so ON so.id = si.sales_order_id
+      LEFT JOIN sales_deliveries sd ON sd.id = si.delivery_id
+      WHERE si.id = $1 AND si.company_id = $2
+      FOR UPDATE OF si
+    `;
+    const res = await client.query(sql, [id, companyId]);
+    if (res.rows.length === 0) return null;
+
+    const linesSql = `
+      SELECT sil.*, i.sku, i.item_name, i.category_id,
+             w.code as warehouse_code, w.name as warehouse_name,
+             u.code as uom_code, u.name as uom_name
+      FROM sales_invoice_lines sil
+      JOIN items i ON i.id = sil.item_id
+      LEFT JOIN warehouses w ON w.id = sil.warehouse_id
+      JOIN uoms u ON u.id = sil.uom_id
+      WHERE sil.sales_invoice_id = $1
+      ORDER BY sil.line_number ASC
+    `;
+    const linesRes = await client.query(linesSql, [id]);
+    const lines = linesRes.rows.map((r) => this.mapLineRowToEntity(r));
+
+    return this.mapRowToEntity(res.rows[0], lines);
   }
 
   async deleteDraft(id: string, companyId: string, client?: pg.PoolClient): Promise<boolean> {

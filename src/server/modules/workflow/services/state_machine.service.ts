@@ -194,6 +194,94 @@ export class StateMachineEngine {
       ],
     });
 
+    // 2e. Purchase Invoice Workflow (Supplier Bills / Accounts Payable)
+    this.registerStateMachine({
+      documentType: 'PURCHASE_INVOICE',
+      initialState: 'DRAFT',
+      allowReversal: true,
+      allowedTransitions: [
+        { from: 'DRAFT', to: 'SUBMITTED', action: 'submit', description: 'Submit purchase invoice for approval' },
+        {
+          from: 'SUBMITTED',
+          to: 'APPROVED',
+          action: 'approve',
+          requiredPermission: 'purchase.invoice.approve',
+          requiresSoD: true,
+          description: 'Approve purchase invoice / supplier bill',
+        },
+        {
+          from: 'SUBMITTED',
+          to: 'REJECTED',
+          action: 'reject',
+          requiredPermission: 'purchase.invoice.reject',
+          description: 'Reject purchase invoice',
+        },
+        {
+          from: 'APPROVED',
+          to: 'POSTED',
+          action: 'post',
+          requiredPermission: 'purchase.invoice.post',
+          requiresSoD: true,
+          description: 'Post purchase invoice to create supplier payable and GL entries (immutable)',
+        },
+        {
+          from: 'POSTED',
+          to: 'REVERSED',
+          action: 'reverse',
+          requiredPermission: 'purchase.invoice.reverse',
+          requiresSoD: false,
+          description: 'Reverse posted purchase invoice, canceling payable and posting compensating GL entries',
+        },
+        { from: 'DRAFT', to: 'CANCELLED', action: 'cancel', description: 'Cancel draft invoice' },
+        { from: 'SUBMITTED', to: 'CANCELLED', action: 'cancel', description: 'Cancel submitted invoice' },
+        { from: 'APPROVED', to: 'CANCELLED', action: 'cancel', description: 'Cancel approved invoice' },
+      ],
+    });
+
+    // 2f. Supplier Payment Workflow (Disbursements & AP Settlement)
+    this.registerStateMachine({
+      documentType: 'SUPPLIER_PAYMENT',
+      initialState: 'DRAFT',
+      allowReversal: true,
+      allowedTransitions: [
+        { from: 'DRAFT', to: 'SUBMITTED', action: 'submit', description: 'Submit supplier payment for review' },
+        {
+          from: 'SUBMITTED',
+          to: 'APPROVED',
+          action: 'approve',
+          requiredPermission: 'purchase.payment.approve',
+          requiresSoD: true,
+          description: 'Approve supplier payment disbursement',
+        },
+        {
+          from: 'SUBMITTED',
+          to: 'REJECTED',
+          action: 'reject',
+          requiredPermission: 'purchase.payment.reject',
+          description: 'Reject supplier payment disbursement',
+        },
+        {
+          from: 'APPROVED',
+          to: 'POSTED',
+          action: 'post',
+          requiredPermission: 'purchase.payment.post',
+          requiresSoD: true,
+          description: 'Post supplier payment, settle payables, and generate GL journal (immutable)',
+        },
+        {
+          from: 'POSTED',
+          to: 'REVERSED',
+          action: 'reverse',
+          requiredPermission: 'purchase.payment.reverse',
+          requiresSoD: false,
+          description: 'Reverse posted supplier payment with compensating GL entry and restored AP balances',
+        },
+        { from: 'DRAFT', to: 'CANCELLED', action: 'cancel', description: 'Cancel draft supplier payment' },
+        { from: 'SUBMITTED', to: 'CANCELLED', action: 'cancel', description: 'Cancel submitted supplier payment' },
+        { from: 'APPROVED', to: 'CANCELLED', action: 'cancel', description: 'Cancel approved supplier payment' },
+      ],
+    });
+
     // 3. Sales Order Workflow
     this.registerStateMachine({
       documentType: 'SALES_ORDER',
@@ -316,12 +404,99 @@ export class StateMachineEngine {
       ],
     });
 
-    // 4. Financial Document Workflow (Standard POSTED -> REVERSED Immutability Protocol)
+    // 3d. Customer Payment Workflow (Settlement & GL Integration)
+    this.registerStateMachine({
+      documentType: 'CUSTOMER_PAYMENT',
+      initialState: 'DRAFT',
+      allowReversal: true,
+      allowedTransitions: [
+        { from: 'DRAFT', to: 'SUBMITTED', action: 'submit', description: 'Submit customer payment for review' },
+        {
+          from: 'SUBMITTED',
+          to: 'APPROVED',
+          action: 'approve',
+          requiredPermission: 'sales.payment.approve',
+          requiresSoD: true,
+          description: 'Approve customer payment receipt',
+        },
+        {
+          from: 'SUBMITTED',
+          to: 'REJECTED',
+          action: 'reject',
+          requiredPermission: 'sales.payment.reject',
+          description: 'Reject customer payment receipt',
+        },
+        {
+          from: 'APPROVED',
+          to: 'POSTED',
+          action: 'post',
+          requiredPermission: 'sales.payment.post',
+          requiresSoD: true,
+          description: 'Post customer payment, settle receivables, and generate general ledger journal (immutable)',
+        },
+        {
+          from: 'POSTED',
+          to: 'REVERSED',
+          action: 'reverse',
+          requiredPermission: 'sales.payment.reverse',
+          requiresSoD: false,
+          description: 'Reverse posted customer payment with compensating GL entry and restored AR balances',
+        },
+        { from: 'DRAFT', to: 'CANCELLED', action: 'cancel', description: 'Cancel draft customer payment' },
+        { from: 'SUBMITTED', to: 'CANCELLED', action: 'cancel', description: 'Cancel submitted customer payment' },
+        { from: 'APPROVED', to: 'CANCELLED', action: 'cancel', description: 'Cancel approved customer payment' },
+      ],
+    });
+
+    // 4. Financial Document & Accounting Journal Workflow
+    this.registerStateMachine({
+      documentType: 'ACCOUNTING_JOURNAL',
+      initialState: 'DRAFT',
+      allowReversal: true,
+      allowedTransitions: [
+        { from: 'DRAFT', to: 'SUBMITTED', action: 'submit', description: 'Submit journal for review' },
+        {
+          from: 'SUBMITTED',
+          to: 'APPROVED',
+          action: 'approve',
+          requiredPermission: 'accounting.journal.approve',
+          requiresSoD: true,
+          description: 'Approve accounting journal',
+        },
+        {
+          from: 'SUBMITTED',
+          to: 'REJECTED',
+          action: 'reject',
+          requiredPermission: 'accounting.journal.reject',
+          description: 'Reject accounting journal',
+        },
+        {
+          from: 'APPROVED',
+          to: 'POSTED',
+          action: 'post',
+          requiredPermission: 'accounting.journal.post',
+          requiresSoD: true,
+          description: 'Post transaction to general ledger (immutable)',
+        },
+        {
+          from: 'POSTED',
+          to: 'REVERSED',
+          action: 'reverse',
+          requiredPermission: 'accounting.journal.reverse',
+          requiresSoD: false,
+          description: 'Post reversing transaction to offset journal entry',
+        },
+        { from: 'DRAFT', to: 'CANCELLED', action: 'cancel', description: 'Cancel draft journal' },
+        { from: 'SUBMITTED', to: 'CANCELLED', action: 'cancel', description: 'Cancel submitted journal' },
+      ],
+    });
+
     this.registerStateMachine({
       documentType: 'FINANCIAL_DOC',
       initialState: 'DRAFT',
       allowReversal: true,
       allowedTransitions: [
+
         { from: 'DRAFT', to: 'SUBMITTED', action: 'submit', description: 'Submit financial document for review' },
         {
           from: 'SUBMITTED',

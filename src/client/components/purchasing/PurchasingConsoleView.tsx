@@ -16,11 +16,17 @@ import {
   FileText,
   AlertCircle,
   RefreshCw,
+  CreditCard,
 } from 'lucide-react';
+import { PurchaseInvoicesTab } from './PurchaseInvoicesTab.js';
+import { SupplierPayablesTab } from './SupplierPayablesTab.js';
+import { SupplierPaymentsTab } from './SupplierPaymentsTab.js';
 
 export const PurchasingConsoleView: React.FC = () => {
   const { activeCompany, token } = useAuth();
-  const [activeSubTab, setActiveSubTab] = useState<'orders' | 'receipts' | 'returns'>('orders');
+  const [activeSubTab, setActiveSubTab] = useState<
+    'orders' | 'receipts' | 'invoices' | 'payables' | 'payments' | 'returns'
+  >('orders');
 
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [receipts, setReceipts] = useState<PurchaseReceipt[]>([]);
@@ -133,10 +139,10 @@ export const PurchasingConsoleView: React.FC = () => {
       )}
 
       {/* Sub tabs */}
-      <div className="flex border-b border-slate-200 gap-4">
+      <div className="flex border-b border-slate-200 gap-4 overflow-x-auto">
         <button
           onClick={() => setActiveSubTab('orders')}
-          className={`pb-2.5 text-xs font-bold border-b-2 flex items-center gap-2 transition-colors ${
+          className={`pb-2.5 text-xs font-bold border-b-2 flex items-center gap-2 whitespace-nowrap transition-colors ${
             activeSubTab === 'orders'
               ? 'border-indigo-600 text-indigo-600'
               : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -147,7 +153,7 @@ export const PurchasingConsoleView: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveSubTab('receipts')}
-          className={`pb-2.5 text-xs font-bold border-b-2 flex items-center gap-2 transition-colors ${
+          className={`pb-2.5 text-xs font-bold border-b-2 flex items-center gap-2 whitespace-nowrap transition-colors ${
             activeSubTab === 'receipts'
               ? 'border-indigo-600 text-indigo-600'
               : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -157,8 +163,41 @@ export const PurchasingConsoleView: React.FC = () => {
           Material Receipts / GRN ({receipts.length})
         </button>
         <button
+          onClick={() => setActiveSubTab('invoices')}
+          className={`pb-2.5 text-xs font-bold border-b-2 flex items-center gap-2 whitespace-nowrap transition-colors ${
+            activeSubTab === 'invoices'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <FileText className="w-4 h-4" />
+          Purchase Invoices (AP Bills)
+        </button>
+        <button
+          onClick={() => setActiveSubTab('payables')}
+          className={`pb-2.5 text-xs font-bold border-b-2 flex items-center gap-2 whitespace-nowrap transition-colors ${
+            activeSubTab === 'payables'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <CreditCard className="w-4 h-4" />
+          Supplier Payables Ledger
+        </button>
+        <button
+          onClick={() => setActiveSubTab('payments')}
+          className={`pb-2.5 text-xs font-bold border-b-2 flex items-center gap-2 whitespace-nowrap transition-colors ${
+            activeSubTab === 'payments'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <Send className="w-4 h-4" />
+          Disbursements & Payments
+        </button>
+        <button
           onClick={() => setActiveSubTab('returns')}
-          className={`pb-2.5 text-xs font-bold border-b-2 flex items-center gap-2 transition-colors ${
+          className={`pb-2.5 text-xs font-bold border-b-2 flex items-center gap-2 whitespace-nowrap transition-colors ${
             activeSubTab === 'returns'
               ? 'border-indigo-600 text-indigo-600'
               : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -361,6 +400,19 @@ export const PurchasingConsoleView: React.FC = () => {
             </table>
           </div>
         </div>
+      )}
+
+      {/* Tab: Purchase Invoices */}
+      {activeSubTab === 'invoices' && (
+        <PurchaseInvoicesTab onRefreshNeeded={fetchPurchasingData} />
+      )}
+
+      {/* Tab: Supplier Payables */}
+      {activeSubTab === 'payables' && <SupplierPayablesTab />}
+
+      {/* Tab: Supplier Payments */}
+      {activeSubTab === 'payments' && (
+        <SupplierPaymentsTab onRefreshNeeded={fetchPurchasingData} />
       )}
 
       {/* Tab: Purchase Returns */}

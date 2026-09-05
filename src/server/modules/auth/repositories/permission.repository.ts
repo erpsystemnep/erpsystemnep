@@ -41,16 +41,26 @@ export class PermissionRepository {
     if (permissions.length === 0) return;
     const executor = client ? client : { query: (text: string, params?: any[]) => query(text, params) };
 
-    for (const perm of permissions) {
-      const sql = `
-        INSERT INTO permissions (id, module, action, description, created_at)
-        VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
-        ON CONFLICT (id) DO UPDATE
-        SET description = EXCLUDED.description,
-            module = EXCLUDED.module,
-            action = EXCLUDED.action
-      `;
-      await executor.query(sql, [perm.id, perm.module, perm.action, perm.description]);
+    const ids: string[] = [];
+    const modules: string[] = [];
+    const actions: string[] = [];
+    const descriptions: string[] = [];
+
+    for (const p of permissions) {
+      ids.push(p.id);
+      modules.push(p.module);
+      actions.push(p.action);
+      descriptions.push(p.description);
     }
+
+    const sql = `
+      INSERT INTO permissions (id, module, action, description, created_at)
+      SELECT * FROM UNNEST($1::text[], $2::text[], $3::text[], $4::text[], array_fill(CURRENT_TIMESTAMP, ARRAY[cardinality($1::text[])]))
+      ON CONFLICT (id) DO UPDATE
+      SET description = EXCLUDED.description,
+          module = EXCLUDED.module,
+          action = EXCLUDED.action
+    `;
+    await executor.query(sql, [ids, modules, actions, descriptions]);
   }
 }
