@@ -19,11 +19,16 @@ import {
   DollarSign,
   Layers,
   ArrowRight,
+  FileCheck2,
 } from 'lucide-react';
+import { TrialBalanceView } from './TrialBalanceView.js';
+import { TaxReconciliationView } from './TaxReconciliationView.js';
 
 export const AccountingConsoleView: React.FC = () => {
   const { activeCompany, token } = useAuth();
-  const [activeTab, setActiveTab] = useState<'accounts' | 'journals' | 'new_journal' | 'new_account'>('accounts');
+  const [activeTab, setActiveTab] = useState<
+    'accounts' | 'journals' | 'trial_balance' | 'tax_reconciliation' | 'new_journal' | 'new_account'
+  >('accounts');
 
   // Accounts state
   const [accounts, setAccounts] = useState<ChartOfAccount[]>([]);
@@ -320,6 +325,30 @@ export const AccountingConsoleView: React.FC = () => {
         >
           <List className="w-4 h-4" />
           Journal Vouchers ({journals.length})
+        </button>
+        <button
+          id="tab-trial-balance-btn"
+          onClick={() => setActiveTab('trial_balance')}
+          className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors ${
+            activeTab === 'trial_balance'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <Scale className="w-4 h-4" />
+          Trial Balance
+        </button>
+        <button
+          id="tab-tax-reconciliation-btn"
+          onClick={() => setActiveTab('tax_reconciliation')}
+          className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors ${
+            activeTab === 'tax_reconciliation'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <FileCheck2 className="w-4 h-4" />
+          Tax Reconciliation
         </button>
       </div>
 
@@ -867,6 +896,11 @@ export const AccountingConsoleView: React.FC = () => {
           </form>
         </div>
       )}
+      {/* TAB 3: TRIAL BALANCE */}
+      {activeTab === 'trial_balance' && <TrialBalanceView />}
+
+      {/* TAB 4: TAX RECONCILIATION */}
+      {activeTab === 'tax_reconciliation' && <TaxReconciliationView />}
     </div>
   );
 };

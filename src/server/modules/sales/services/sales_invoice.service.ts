@@ -760,8 +760,8 @@ export class SalesInvoiceService {
       // 4. Create Reversal General Ledger Journal
       let reversalJournalId: string | null = null;
       if (invoice.journalId) {
-        const origJournal = await this.journalRepo.findById(invoice.journalId, companyId, dbClient);
-        if (origJournal && origJournal.status === 'POSTED') {
+        const origJournal = await this.journalRepo.findById(invoice.journalId, dbClient);
+        if (origJournal && origJournal.companyId === companyId && origJournal.status === 'POSTED') {
           const origLines = await this.journalRepo.getLines(origJournal.id, dbClient);
 
           let revJournalNumber = '';

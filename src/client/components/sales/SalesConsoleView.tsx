@@ -38,6 +38,7 @@ export const SalesConsoleView: React.FC = () => {
   const [receivables, setReceivables] = useState<CustomerReceivable[]>([]);
   const [payments, setPayments] = useState<CustomerPayment[]>([]);
   const [depositAccounts, setDepositAccounts] = useState<ChartOfAccount[]>([]);
+  const [revenueAccounts, setRevenueAccounts] = useState<ChartOfAccount[]>([]);
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [deliveries, setDeliveries] = useState<SalesDelivery[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<SalesInvoice | null>(null);
@@ -63,6 +64,7 @@ export const SalesConsoleView: React.FC = () => {
       unitPrice: number;
       discountRate: number;
       taxRate: number;
+      revenueAccountId?: string;
       salesDeliveryLineId?: string;
       salesOrderLineId?: string;
     }>
@@ -98,13 +100,14 @@ export const SalesConsoleView: React.FC = () => {
         'x-company-id': activeCompany.id,
       };
 
-      const [invRes, recRes, ordRes, delRes, payRes, accRes] = await Promise.all([
+      const [invRes, recRes, ordRes, delRes, payRes, accRes, revAccRes] = await Promise.all([
         fetch(`/api/v1/sales/invoices?limit=50`, { headers }),
         fetch(`/api/v1/sales/receivables?limit=50`, { headers }),
         fetch(`/api/v1/sales/orders?limit=50`, { headers }),
         fetch(`/api/v1/sales/deliveries?limit=50`, { headers }),
         fetch(`/api/v1/sales/payments?companyId=${activeCompany.id}`, { headers }),
         fetch(`/api/v1/accounting/accounts?companyId=${activeCompany.id}&accountType=ASSET&isActive=true`, { headers }),
+        fetch(`/api/v1/accounting/accounts?companyId=${activeCompany.id}&accountType=REVENUE&isActive=true`, { headers }),
       ]);
 
       if (invRes.ok) {
@@ -130,6 +133,10 @@ export const SalesConsoleView: React.FC = () => {
       if (accRes.ok) {
         const d = await accRes.json();
         setDepositAccounts((d.data || []).filter((a: ChartOfAccount) => !a.isGroup));
+      }
+      if (revAccRes.ok) {
+        const d = await revAccRes.json();
+        setRevenueAccounts((d.data || []).filter((a: ChartOfAccount) => !a.isGroup));
       }
     } catch (err: any) {
       setActionError(err.message || 'Failed to fetch sales data');
@@ -196,6 +203,7 @@ export const SalesConsoleView: React.FC = () => {
         unitPrice: Number(l.unitPrice),
         discountRate: Number(l.discountRate),
         taxRate: Number(l.taxRate),
+        revenueAccountId: l.revenueAccountId || undefined,
         salesDeliveryLineId: l.salesDeliveryLineId || undefined,
         salesOrderLineId: l.salesOrderLineId || undefined,
       })),
@@ -1144,7 +1152,7 @@ export const SalesConsoleView: React.FC = () => {
                 {lines.map((line, idx) => (
                   <div
                     key={idx}
-                    className="p-3 bg-slate-50 rounded-lg border border-slate-200 grid grid-cols-2 sm:grid-cols-7 gap-2 items-center"
+                    className="p-3 bg-slate-50 rounded-lg border border-slate-200 grid grid-cols-2 sm:grid-cols-8 gap-2 items-center"
                   >
                     <div className="col-span-2">
                       <label className="text-[10px] text-slate-400 block mb-0.5">Item ID *</label>
@@ -1239,6 +1247,37 @@ export const SalesConsoleView: React.FC = () => {
                         }}
                         className="w-full px-2 py-1 bg-white border border-slate-200 rounded text-xs"
                       />
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] text-slate-400 block mb-0.5">Revenue Account</label>
+                        {lines.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setLines(lines.filter((_, i) => i !== idx))}
+                            className="text-rose-500 hover:text-rose-700 text-[10px] ml-1"
+                            title="Remove Line"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                      <select
+                        value={line.revenueAccountId || ''}
+                        onChange={(e) => {
+                          const updated = [...lines];
+                          updated[idx].revenueAccountId = e.target.value || undefined;
+                          setLines(updated);
+                        }}
+                        className="w-full px-1.5 py-1 bg-white border border-slate-200 rounded text-xs truncate"
+                      >
+                        <option value="">Default (4000 Sales)</option>
+                        {revenueAccounts.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.accountCode} - {a.accountName}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 ))}

@@ -120,9 +120,12 @@ export async function runDatabaseVerificationTests() {
     'supplier_payables',
     'supplier_payments',
     'supplier_payment_allocations',
+    'tax_transactions',
+    'inventory_cost_layers',
+    'inventory_valuation_transactions',
   ];
 
-  await test('All 46 approved foundation, purchasing, inventory, sales, invoicing, AP & general ledger tables exist in the database', async () => {
+  await test('All 49 approved foundation, purchasing, inventory, sales, invoicing, AP, tax subledger & inventory valuation tables exist in the database', async () => {
     const res = await pool.query(`
       SELECT table_name 
       FROM information_schema.tables 

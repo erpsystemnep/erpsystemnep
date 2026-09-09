@@ -3,6 +3,7 @@ import { PurchaseInvoiceRepository, CreatePurchaseInvoiceDbHeaderInput, CreatePu
 import { SupplierPayableRepository } from '../repositories/supplier_payable.repository.js';
 import { ChartOfAccountsRepository } from '../../accounting/repositories/chart_of_accounts.repository.js';
 import { AccountingJournalRepository } from '../../accounting/repositories/accounting_journal.repository.js';
+import { TaxTransactionRepository } from '../../accounting/repositories/tax_transaction.repository.js';
 import { NumberingService } from '../../numbering/services/numbering.service.js';
 import { StateMachineEngine } from '../../workflow/services/state_machine.service.js';
 import { AuditService } from '../../audit/services/audit.service.js';
@@ -24,6 +25,7 @@ export class PurchaseInvoiceService {
     private payableRepo: SupplierPayableRepository = new SupplierPayableRepository(),
     private coaRepo: ChartOfAccountsRepository = new ChartOfAccountsRepository(),
     private journalRepo: AccountingJournalRepository = new AccountingJournalRepository(),
+    private taxRepo: TaxTransactionRepository = new TaxTransactionRepository(),
     private numbering: NumberingService = new NumberingService(),
     private stateMachine: StateMachineEngine = new StateMachineEngine(),
     private audit: AuditService = new AuditService()
@@ -510,9 +512,38 @@ export class PurchaseInvoiceService {
         clearingAccountId = newClearing.id;
       }
 
+      // Input Tax Account (Asset, code 1150 or default) if taxTotal > 0
+      let inputTaxAccount = null;
+      if (invoice.taxTotal > 0) {
+        inputTaxAccount = assetOrExpenseAccounts.find(
+          (a) =>
+            a.accountCode === '1150' ||
+            a.accountName.toUpperCase().includes('INPUT TAX') ||
+            a.accountName.toUpperCase().includes('TAX RECEIVABLE') ||
+            a.accountName.toUpperCase().includes('VAT RECEIVABLE')
+        );
+
+        if (!inputTaxAccount) {
+          inputTaxAccount = await this.coaRepo.create(
+            {
+              companyId,
+              accountCode: '1150',
+              accountName: 'Input Tax Receivable',
+              accountType: 'ASSET',
+              isGroup: false,
+              isActive: true,
+              currencyCode: invoice.currencyCode,
+              description: 'Purchase Input Tax (VAT) Receivable Account',
+            },
+            dbClient
+          );
+        }
+      }
+
       // 5. Generate Accounting Journal
-      // DEBIT: Inventory Clearing / Expense
-      // CREDIT: Trade Accounts Payable
+      // DEBIT: Inventory Clearing / Expense (Net Amount)
+      // DEBIT: Input Tax Receivable (Tax Amount)
+      // CREDIT: Trade Accounts Payable (Grand Total)
       let journalNumber = '';
       try {
         const numResult = await this.numbering.generateNextNumber(
@@ -529,7 +560,72 @@ export class PurchaseInvoiceService {
         journalNumber = `JV-PINV-${invoice.invoiceNumber}`;
       }
 
-      const baseGrandTotal = Math.round(invoice.grandTotal * invoice.exchangeRate * 10000) / 10000;
+      const exchangeRate = invoice.exchangeRate || 1.0;
+      const baseGrandTotal = Math.round(invoice.grandTotal * exchangeRate * 10000) / 10000;
+      const baseTaxAmount = Math.round(invoice.taxTotal * exchangeRate * 10000) / 10000;
+      const netPurchases = Math.round((invoice.subtotal - invoice.discountTotal) * 10000) / 10000;
+      const baseNetPurchases = Math.round(netPurchases * exchangeRate * 10000) / 10000;
+
+      const journalLines: any[] = [];
+      let lineNum = 1;
+
+      // Line 1: DEBIT Inventory Clearing / Expense
+      journalLines.push({
+        lineNumber: lineNum++,
+        accountId: clearingAccountId,
+        debit: netPurchases,
+        credit: 0,
+        currencyCode: invoice.currencyCode,
+        exchangeRate,
+        baseDebit: baseNetPurchases,
+        baseCredit: 0,
+        description: `Inventory clearing/expense for purchase invoice ${invoice.invoiceNumber}`,
+      });
+
+      // Line 2: DEBIT Input Tax Receivable (if tax > 0)
+      if (invoice.taxTotal > 0 && inputTaxAccount) {
+        journalLines.push({
+          lineNumber: lineNum++,
+          accountId: inputTaxAccount.id,
+          debit: invoice.taxTotal,
+          credit: 0,
+          currencyCode: invoice.currencyCode,
+          exchangeRate,
+          baseDebit: baseTaxAmount,
+          baseCredit: 0,
+          description: `Input tax receivable for purchase invoice ${invoice.invoiceNumber}`,
+        });
+      }
+
+      // Line 3: CREDIT Accounts Payable
+      journalLines.push({
+        lineNumber: lineNum++,
+        accountId: apAccountId,
+        partnerId: invoice.supplierId,
+        debit: 0,
+        credit: invoice.grandTotal,
+        currencyCode: invoice.currencyCode,
+        exchangeRate,
+        baseDebit: 0,
+        baseCredit: baseGrandTotal,
+        description: `Accounts payable obligation for invoice ${invoice.invoiceNumber}`,
+      });
+
+      // Rounding adjustment if any
+      let sumBaseDebit = 0;
+      let sumBaseCredit = 0;
+      for (const l of journalLines) {
+        sumBaseDebit += l.baseDebit;
+        sumBaseCredit += l.baseCredit;
+      }
+      const roundingDiff = Math.round((sumBaseDebit - sumBaseCredit) * 10000) / 10000;
+      if (roundingDiff !== 0 && journalLines.length > 0) {
+        journalLines[0].baseDebit = Math.round((journalLines[0].baseDebit - roundingDiff) * 10000) / 10000;
+        journalLines[0].debit = Math.round((journalLines[0].debit - roundingDiff / exchangeRate) * 10000) / 10000;
+      }
+
+      const totalDebit = journalLines.reduce((acc, l) => acc + l.debit, 0);
+      const totalCredit = journalLines.reduce((acc, l) => acc + l.credit, 0);
 
       const journal = await this.journalRepo.create(
         {
@@ -541,42 +637,48 @@ export class PurchaseInvoiceService {
           sourceDocumentId: invoice.id,
           description: `Purchase invoice posting ${invoice.invoiceNumber}`,
           status: 'POSTED',
-          totalDebit: invoice.grandTotal,
-          totalCredit: invoice.grandTotal,
+          totalDebit: Math.round(totalDebit * 10000) / 10000,
+          totalCredit: Math.round(totalCredit * 10000) / 10000,
           currencyCode: invoice.currencyCode,
           createdBy: ctx.userId,
           approvedBy: ctx.userId,
           approvedAt: new Date().toISOString(),
           postedBy: ctx.userId,
           postedAt: new Date().toISOString(),
-          lines: [
-            {
-              lineNumber: 1,
-              accountId: clearingAccountId,
-              debit: invoice.grandTotal,
-              credit: 0,
-              currencyCode: invoice.currencyCode,
-              exchangeRate: invoice.exchangeRate,
-              baseDebit: baseGrandTotal,
-              baseCredit: 0,
-              description: `Inventory clearing/expense for purchase invoice ${invoice.invoiceNumber}`,
-            },
-            {
-              lineNumber: 2,
-              accountId: apAccountId,
-              partnerId: invoice.supplierId,
-              debit: 0,
-              credit: invoice.grandTotal,
-              currencyCode: invoice.currencyCode,
-              exchangeRate: invoice.exchangeRate,
-              baseDebit: 0,
-              baseCredit: baseGrandTotal,
-              description: `Accounts payable obligation for invoice ${invoice.invoiceNumber}`,
-            },
-          ],
+          lines: journalLines,
         },
         dbClient
       );
+
+      // Record Tax Transactions (Tax Subledger for Purchases)
+      if (invoice.taxTotal > 0 && invoice.lines) {
+        for (const line of invoice.lines) {
+          if (line.taxAmount > 0) {
+            await this.taxRepo.create(
+              {
+                companyId,
+                branchId: invoice.branchId || null,
+                taxType: 'INPUT_TAX',
+                sourceType: 'PURCHASE_INVOICE',
+                sourceId: invoice.id,
+                sourceLineId: line.id,
+                taxCode: line.taxRate ? `${line.taxRate}%` : 'INPUT_TAX',
+                taxRate: line.taxRate,
+                taxableAmount: line.lineNet,
+                taxAmount: line.taxAmount,
+                currencyCode: invoice.currencyCode,
+                exchangeRate,
+                baseTaxableAmount: Math.round(line.lineNet * exchangeRate * 10000) / 10000,
+                baseTaxAmount: Math.round(line.taxAmount * exchangeRate * 10000) / 10000,
+                accountingDate: invoice.invoiceDate,
+                journalId: journal.id,
+                status: 'POSTED',
+              },
+              dbClient
+            );
+          }
+        }
+      }
 
       // 6. Mark Invoice as POSTED and link journal
       await this.invoiceRepo.updateStatus(
@@ -655,19 +757,14 @@ export class PurchaseInvoiceService {
       }
 
       // 3. Mark Original Journal as REVERSED and Create Compensating Reversal Journal
+      let reversalJournalId: string | null = null;
       if (invoice.journalId) {
         await this.journalRepo.updateStatus(invoice.journalId, 'REVERSED', {}, dbClient);
 
-        // Resolve accounts
         const originalJournal = await this.journalRepo.findById(invoice.journalId, dbClient);
-        const originalLines = originalJournal?.lines || [];
-        const clearingLine = originalLines.find((l) => l.debit > 0);
-        const apLine = originalLines.find((l) => l.credit > 0);
+        if (originalJournal && originalJournal.companyId === companyId) {
+          const origLines = await this.journalRepo.getLines(originalJournal.id, dbClient);
 
-        const clearingAccountId = clearingLine?.accountId;
-        const apAccountId = apLine?.accountId;
-
-        if (clearingAccountId && apAccountId) {
           let revNumber = '';
           try {
             const numResult = await this.numbering.generateNextNumber(
@@ -684,9 +781,20 @@ export class PurchaseInvoiceService {
             revNumber = `REV-PINV-${invoice.invoiceNumber}`;
           }
 
-          const baseGrandTotal = Math.round(invoice.grandTotal * invoice.exchangeRate * 10000) / 10000;
+          const reversalLines = origLines.map((l, idx) => ({
+            lineNumber: idx + 1,
+            accountId: l.accountId,
+            partnerId: l.partnerId || null,
+            debit: l.credit,
+            credit: l.debit,
+            currencyCode: l.currencyCode,
+            exchangeRate: l.exchangeRate,
+            baseDebit: l.baseCredit,
+            baseCredit: l.baseDebit,
+            description: `Reversal of purchase journal line ${l.lineNumber} (${originalJournal.journalNumber}) - ${reason}`,
+          }));
 
-          await this.journalRepo.create(
+          const revJournal = await this.journalRepo.create(
             {
               companyId,
               branchId: invoice.branchId || null,
@@ -696,8 +804,8 @@ export class PurchaseInvoiceService {
               sourceDocumentId: invoice.id,
               description: `Compensating reversal for purchase invoice ${invoice.invoiceNumber}: ${reason}`,
               status: 'POSTED',
-              totalDebit: invoice.grandTotal,
-              totalCredit: invoice.grandTotal,
+              totalDebit: originalJournal.totalCredit,
+              totalCredit: originalJournal.totalDebit,
               currencyCode: invoice.currencyCode,
               createdBy: ctx.userId,
               approvedBy: ctx.userId,
@@ -705,38 +813,31 @@ export class PurchaseInvoiceService {
               postedBy: ctx.userId,
               postedAt: new Date().toISOString(),
               reversalJournalId: invoice.journalId,
-              lines: [
-                {
-                  lineNumber: 1,
-                  accountId: apAccountId,
-                  partnerId: invoice.supplierId,
-                  debit: invoice.grandTotal, // DR Accounts Payable (Reversal)
-                  credit: 0,
-                  currencyCode: invoice.currencyCode,
-                  exchangeRate: invoice.exchangeRate,
-                  baseDebit: baseGrandTotal,
-                  baseCredit: 0,
-                  description: `Reversal of payable obligation for invoice ${invoice.invoiceNumber}`,
-                },
-                {
-                  lineNumber: 2,
-                  accountId: clearingAccountId,
-                  debit: 0,
-                  credit: invoice.grandTotal, // CR Inventory Clearing / Expense (Reversal)
-                  currencyCode: invoice.currencyCode,
-                  exchangeRate: invoice.exchangeRate,
-                  baseDebit: 0,
-                  baseCredit: baseGrandTotal,
-                  description: `Reversal of inventory clearing/expense for invoice ${invoice.invoiceNumber}`,
-                },
-              ],
+              lines: reversalLines,
             },
             dbClient
+          );
+
+          reversalJournalId = revJournal.id;
+
+          await dbClient.query(
+            `UPDATE accounting_journals SET reversal_journal_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND company_id = $3`,
+            [revJournal.id, originalJournal.id, companyId]
           );
         }
       }
 
-      // 4. Mark Invoice as REVERSED
+      // 4. Update Tax Transactions to REVERSED
+      await this.taxRepo.updateStatusBySource(
+        'PURCHASE_INVOICE',
+        invoice.id,
+        companyId,
+        'REVERSED',
+        reversalJournalId,
+        dbClient
+      );
+
+      // 5. Mark Invoice as REVERSED
       await this.invoiceRepo.updateStatus(
         id,
         'REVERSED',

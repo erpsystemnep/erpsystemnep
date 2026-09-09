@@ -12,6 +12,9 @@ import { StateMachineEngine } from '../../workflow/services/state_machine.servic
 import { NumberingService } from '../../numbering/services/numbering.service.js';
 import { AuditService } from '../../audit/services/audit.service.js';
 import { CreateSalesDeliveryInput } from '../../../../shared/schemas/sales.js';
+import { InventoryValuationService } from '../../inventory/services/inventory_valuation.service.js';
+import { ChartOfAccountsRepository } from '../../accounting/repositories/chart_of_accounts.repository.js';
+import { AccountingJournalRepository } from '../../accounting/repositories/accounting_journal.repository.js';
 import { SalesDelivery, SecurityContext, SalesDeliveryStatus } from '../../../../shared/types/index.js';
 import { AppError } from '../../../../shared/errors/AppError.js';
 import pg from 'pg';
@@ -25,7 +28,10 @@ export class SalesDeliveryService {
     private stockLedgerRepo: StockLedgerRepository = new StockLedgerRepository(),
     private stateMachine: StateMachineEngine = new StateMachineEngine(),
     private numbering: NumberingService = new NumberingService(),
-    private audit: AuditService = new AuditService()
+    private audit: AuditService = new AuditService(),
+    private valuationService: InventoryValuationService = new InventoryValuationService(),
+    private coaRepo: ChartOfAccountsRepository = new ChartOfAccountsRepository(),
+    private journalRepo: AccountingJournalRepository = new AccountingJournalRepository()
   ) {}
 
   private resolveCompanyId(ctx: SecurityContext, explicitCompanyId?: string): string {
@@ -361,7 +367,8 @@ export class SalesDeliveryService {
         },
       });
 
-      // 1. Process Stock Ledger Deductions and Reservation Fulfillments
+      // 1. Process Stock Ledger Deductions, Reservation Fulfillments, and Cost Layer Consumption
+      let totalCogsCost = 0;
       for (const line of delivery.lines || []) {
         for (const alloc of line.batchAllocations || []) {
           // Fetch batch unit cost for accurate valuation
@@ -454,6 +461,24 @@ export class SalesDeliveryService {
               dbClient
             );
           }
+
+          // Authoritative FIFO cost layer consumption and valuation subledger recording
+          const issueRes = await this.valuationService.issueCostLayers(
+            {
+              companyId: delivery.companyId,
+              branchId: delivery.branchId,
+              warehouseId: line.warehouseId,
+              itemId: line.itemId,
+              batchId: alloc.batchId,
+              quantity: alloc.quantity,
+              sourceDocumentType: 'SALES_DELIVERY',
+              sourceDocumentId: delivery.id,
+              sourceDocumentLineId: line.id,
+              accountingDate: delivery.deliveryDate ? new Date(delivery.deliveryDate).toISOString().split('T')[0] : undefined,
+            },
+            dbClient
+          );
+          totalCogsCost = Math.round((totalCogsCost + issueRes.totalCost) * 10000) / 10000;
         }
       }
 
@@ -464,19 +489,132 @@ export class SalesDeliveryService {
         postedAt: now,
       });
 
-      // 3. Audit Log
+      // 3. Post COGS General Ledger Journal if cost recognized
+      let journalId: string | null = null;
+      if (totalCogsCost > 0) {
+        const accounts = await this.coaRepo.list(delivery.companyId, { isActive: true, isGroup: false }, dbClient);
+
+        let cogsAccount = accounts.find(
+          (a) =>
+            a.accountCode === '5000' ||
+            a.accountCode === '5100' ||
+            a.accountName.toUpperCase().includes('COGS') ||
+            a.accountName.toUpperCase().includes('COST OF GOODS') ||
+            a.accountType === 'EXPENSE'
+        );
+        if (!cogsAccount) {
+          cogsAccount = await this.coaRepo.create(
+            {
+              companyId: delivery.companyId,
+              accountCode: '5000',
+              accountName: 'Cost of Goods Sold',
+              accountType: 'EXPENSE',
+              isGroup: false,
+              isActive: true,
+              currencyCode: 'USD',
+              description: 'Cost of Goods Sold expense account',
+            },
+            dbClient
+          );
+        }
+
+        let inventoryAccount = accounts.find(
+          (a) =>
+            a.accountCode === '1400' ||
+            a.accountName.toUpperCase().includes('INVENTORY') ||
+            a.accountType === 'ASSET'
+        );
+        if (!inventoryAccount) {
+          inventoryAccount = await this.coaRepo.create(
+            {
+              companyId: delivery.companyId,
+              accountCode: '1400',
+              accountName: 'Merchandise Inventory',
+              accountType: 'ASSET',
+              isGroup: false,
+              isActive: true,
+              currencyCode: 'USD',
+              description: 'General Inventory Asset Account',
+            },
+            dbClient
+          );
+        }
+
+        let journalNumber = '';
+        try {
+          const numRes = await this.numbering.generateNextNumber(
+            {
+              companyId: delivery.companyId,
+              branchId: delivery.branchId || null,
+              documentType: 'JOURNAL',
+            },
+            ctx,
+            dbClient
+          );
+          journalNumber = numRes.formattedNumber;
+        } catch {
+          journalNumber = `JV-DELV-${delivery.deliveryNumber}`;
+        }
+
+        const journal = await this.journalRepo.create(
+          {
+            companyId: delivery.companyId,
+            branchId: delivery.branchId,
+            journalNumber,
+            postingDate: delivery.deliveryDate ? new Date(delivery.deliveryDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            sourceDocumentType: 'SALES_DELIVERY',
+            sourceDocumentId: delivery.id,
+            description: `COGS recognition for delivery ${delivery.deliveryNumber}`,
+            status: 'POSTED',
+            totalDebit: totalCogsCost,
+            totalCredit: totalCogsCost,
+            currencyCode: 'USD',
+            createdBy: ctx.userId,
+            postedBy: ctx.userId,
+            postedAt: now,
+            lines: [
+              {
+                lineNumber: 1,
+                accountId: cogsAccount.id,
+                debit: totalCogsCost,
+                credit: 0,
+                baseDebit: totalCogsCost,
+                baseCredit: 0,
+                description: `COGS for delivery ${delivery.deliveryNumber}`,
+              },
+              {
+                lineNumber: 2,
+                accountId: inventoryAccount.id,
+                debit: 0,
+                credit: totalCogsCost,
+                baseDebit: 0,
+                baseCredit: totalCogsCost,
+                description: `Inventory reduction for delivery ${delivery.deliveryNumber}`,
+              },
+            ],
+          },
+          dbClient
+        );
+
+        journalId = journal.id;
+        await dbClient.query(`UPDATE sales_deliveries SET journal_id = $1 WHERE id = $2`, [journal.id, delivery.id]);
+        await this.valuationService.assignJournalToTransactions('SALES_DELIVERY', delivery.id, journal.id, dbClient);
+      }
+
+      // 4. Audit Log
       await this.audit.logUpdate(
         'sales',
         'SalesDelivery',
         id,
         { status: delivery.status },
-        { status: 'POSTED', postedBy: ctx.userId, postedAt: now },
+        { status: 'POSTED', postedBy: ctx.userId, postedAt: now, journalId },
         ctx,
-        'Posted Goods Delivery Note and deducted stock from ledger',
+        'Posted Goods Delivery Note, deducted stock and recorded COGS',
         dbClient
       );
 
-      return updated!;
+      const refreshed = await this.findById(id, ctx, dbClient);
+      return refreshed;
     };
 
     return client ? exec(client) : withTransaction(exec);
@@ -531,15 +669,85 @@ export class SalesDeliveryService {
         }
       }
 
+      // Restore FIFO Cost layers and record valuation reversal transactions
+      const restoreRes = await this.valuationService.restoreCostLayers('SALES_DELIVERY', delivery.id, dbClient);
+
+      const now = new Date().toISOString();
       const updated = await this.deliveryRepo.updateStatus(id, 'REVERSED', dbClient);
+      await dbClient.query(
+        `UPDATE sales_deliveries SET reversed_by = $1, reversed_at = $2 WHERE id = $3`,
+        [ctx.userId, now, id]
+      );
+
+      // Compensating General Ledger Journal for COGS reversal
+      if (delivery.journalId && restoreRes.totalCost > 0) {
+        const origJournal = await this.journalRepo.findById(delivery.journalId, dbClient);
+        if (origJournal && origJournal.lines && origJournal.lines.length >= 2) {
+          const cogsLine = origJournal.lines.find((l) => l.debit > 0);
+          const invLine = origJournal.lines.find((l) => l.credit > 0);
+
+          if (cogsLine && invLine) {
+            const revJournal = await this.journalRepo.create(
+              {
+                companyId: delivery.companyId,
+                branchId: delivery.branchId,
+                journalNumber: `REV-DELV-${delivery.deliveryNumber}`,
+                postingDate: new Date().toISOString().split('T')[0],
+                sourceDocumentType: 'SALES_DELIVERY_REVERSAL',
+                sourceDocumentId: delivery.id,
+                description: `Reversal of COGS for delivery ${delivery.deliveryNumber}`,
+                status: 'POSTED',
+                totalDebit: restoreRes.totalCost,
+                totalCredit: restoreRes.totalCost,
+                currencyCode: 'USD',
+                createdBy: ctx.userId,
+                postedBy: ctx.userId,
+                postedAt: now,
+                lines: [
+                  {
+                    lineNumber: 1,
+                    accountId: invLine.accountId,
+                    debit: restoreRes.totalCost,
+                    credit: 0,
+                    baseDebit: restoreRes.totalCost,
+                    baseCredit: 0,
+                    description: `Inventory restoration for delivery ${delivery.deliveryNumber}`,
+                  },
+                  {
+                    lineNumber: 2,
+                    accountId: cogsLine.accountId,
+                    debit: 0,
+                    credit: restoreRes.totalCost,
+                    baseDebit: 0,
+                    baseCredit: restoreRes.totalCost,
+                    description: `COGS reversal for delivery ${delivery.deliveryNumber}`,
+                  },
+                ],
+              },
+              dbClient
+            );
+
+            await dbClient.query(
+              `UPDATE accounting_journals SET reversal_journal_id = $1 WHERE id = $2`,
+              [revJournal.id, origJournal.id]
+            );
+
+            await dbClient.query(
+              `UPDATE inventory_valuation_transactions SET reversal_journal_id = $1 WHERE source_type = 'SALES_DELIVERY_REVERSAL' AND source_id = $2`,
+              [revJournal.id, delivery.id]
+            );
+          }
+        }
+      }
+
       await this.audit.logUpdate(
         'sales',
         'SalesDelivery',
         id,
         { status: delivery.status },
-        { status: 'REVERSED' },
+        { status: 'REVERSED', reversedBy: ctx.userId, reversedAt: now },
         ctx,
-        'Reversed posted Goods Delivery Note with offset stock ledger entries',
+        'Reversed posted Goods Delivery Note with offset stock ledger and COGS reversal',
         dbClient
       );
       return updated!;

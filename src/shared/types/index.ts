@@ -476,6 +476,9 @@ export interface PurchaseReceipt {
   approvedAt?: string | null;
   postedBy?: string | null;
   postedAt?: string | null;
+  journalId?: string | null;
+  reversedBy?: string | null;
+  reversedAt?: string | null;
   createdAt: string;
   updatedAt: string;
   supplier?: BusinessPartner | null;
@@ -790,6 +793,9 @@ export interface SalesDelivery {
   approvedAt?: string | null;
   postedBy?: string | null;
   postedAt?: string | null;
+  journalId?: string | null;
+  reversedBy?: string | null;
+  reversedAt?: string | null;
   createdAt: string;
   updatedAt: string;
   customer?: BusinessPartner | null;
@@ -1300,4 +1306,130 @@ export interface TaxSummaryReport {
     transactionCount: number;
   }>;
 }
+
+export interface InventoryCostLayer {
+  id: string;
+  companyId: string;
+  branchId?: string | null;
+  warehouseId: string;
+  itemId: string;
+  batchId: string;
+  uomId: string;
+  initialQuantity: number;
+  remainingQuantity: number;
+  unitCost: number;
+  totalCost: number;
+  remainingValue: number;
+  currencyCode: string;
+  exchangeRate: number;
+  sourceDocumentType: string;
+  sourceDocumentId: string;
+  sourceDocumentLineId?: string | null;
+  accountingDate: string;
+  isExhausted: boolean;
+  createdAt: string;
+  updatedAt: string;
+  item?: Item | null;
+  warehouse?: Warehouse | null;
+  batch?: InventoryBatch | null;
+  uom?: UnitOfMeasure | null;
+}
+
+export type InventoryValuationTransactionType = 'RECEIPT' | 'ISSUE' | 'RETURN' | 'ADJUSTMENT' | 'REVERSAL';
+
+export interface InventoryValuationTransaction {
+  id: string;
+  companyId: string;
+  branchId?: string | null;
+  warehouseId: string;
+  itemId: string;
+  batchId: string;
+  costLayerId?: string | null;
+  transactionType: InventoryValuationTransactionType;
+  sourceType: string;
+  sourceId: string;
+  sourceLineId?: string | null;
+  quantity: number;
+  unitCost: number;
+  totalCost: number;
+  currencyCode: string;
+  exchangeRate: number;
+  baseUnitCost: number;
+  baseTotalCost: number;
+  accountingDate: string;
+  journalId?: string | null;
+  status: 'POSTED' | 'REVERSED';
+  reversalJournalId?: string | null;
+  createdAt: string;
+  item?: Item | null;
+  warehouse?: Warehouse | null;
+  batch?: InventoryBatch | null;
+}
+
+export interface InventoryValuationReportItem {
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  categoryName?: string | null;
+  uomCode: string;
+  totalQuantity: number;
+  totalValue: number;
+  averageCost: number;
+  layersCount: number;
+  layers?: InventoryCostLayer[];
+}
+
+export interface InventoryValuationReportSummary {
+  companyId: string;
+  asOfDate: string;
+  warehouseId?: string | null;
+  totalItems: number;
+  totalQuantity: number;
+  totalValuation: number;
+  currencyCode: string;
+  items: InventoryValuationReportItem[];
+}
+
+export interface CogsReportLine {
+  id: string;
+  accountingDate: string;
+  sourceType: string;
+  sourceId: string;
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  batchNumber: string;
+  warehouseName: string;
+  quantity: number;
+  unitCost: number;
+  totalCost: number;
+  journalId?: string | null;
+  status: string;
+}
+
+export interface CogsReportSummary {
+  companyId: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  totalCogs: number;
+  totalQuantity: number;
+  transactionCount: number;
+  transactions: CogsReportLine[];
+}
+
+export interface InventoryGlReconciliation {
+  companyId: string;
+  asOfDate: string;
+  subledgerTotal: number;
+  glAccount1400Balance: number;
+  discrepancy: number;
+  isReconciled: boolean;
+  details: {
+    activeCostLayersTotal: number;
+    valuationTransactionsNetTotal: number;
+    glDebitsTotal: number;
+    glCreditsTotal: number;
+  };
+}
+
 
