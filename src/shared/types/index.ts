@@ -1432,4 +1432,311 @@ export interface InventoryGlReconciliation {
   };
 }
 
+export type FiscalYearStatus = 'OPEN' | 'CLOSED';
+
+export interface FiscalYear {
+  id: string;
+  companyId: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  status: FiscalYearStatus;
+  closedAt?: string | null;
+  closedBy?: string | null;
+  reopenedAt?: string | null;
+  reopenedBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type AccountingPeriodStatus = 'OPEN' | 'CLOSED';
+
+export interface AccountingPeriod {
+  id: string;
+  companyId: string;
+  fiscalYearId?: string | null;
+  periodName: string;
+  periodNumber: number;
+  startDate: string;
+  endDate: string;
+  status: AccountingPeriodStatus;
+  closedAt?: string | null;
+  closedBy?: string | null;
+  reopenedAt?: string | null;
+  reopenedBy?: string | null;
+  closingNotes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GeneralLedgerLine {
+  id: string;
+  journalId: string;
+  journalNumber: string;
+  postingDate: string;
+  sourceDocumentType: string;
+  sourceDocumentId?: string | null;
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  accountType: AccountType;
+  partnerId?: string | null;
+  partnerName?: string | null;
+  partnerCode?: string | null;
+  description?: string | null;
+  debit: number;
+  credit: number;
+  runningBalance: number;
+}
+
+export interface GeneralLedgerReport {
+  companyId: string;
+  startDate: string;
+  endDate: string;
+  branchId?: string | null;
+  accountId?: string | null;
+  generatedAt: string;
+  totalDebit: number;
+  totalCredit: number;
+  lines: GeneralLedgerLine[];
+}
+
+export interface AccountLedgerLine {
+  id: string;
+  journalId: string;
+  journalNumber: string;
+  postingDate: string;
+  sourceDocumentType: string;
+  description?: string | null;
+  debit: number;
+  credit: number;
+  runningBalance: number;
+}
+
+export interface AccountLedgerReport {
+  companyId: string;
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  accountType: AccountType;
+  startDate: string;
+  endDate: string;
+  currencyCode: string;
+  openingBalance: number;
+  totalDebits: number;
+  totalCredits: number;
+  closingBalance: number;
+  lines: AccountLedgerLine[];
+}
+
+export interface ProfitLossAccountItem {
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  amount: number;
+}
+
+export interface ProfitLossReport {
+  companyId: string;
+  startDate: string;
+  endDate: string;
+  branchId?: string | null;
+  generatedAt: string;
+  currencyCode: string;
+  operatingRevenue: {
+    accounts: ProfitLossAccountItem[];
+    total: number;
+  };
+  costOfGoodsSold: {
+    accounts: ProfitLossAccountItem[];
+    total: number;
+  };
+  grossProfit: number;
+  operatingExpenses: {
+    accounts: ProfitLossAccountItem[];
+    total: number;
+  };
+  operatingProfit: number;
+  otherIncome: {
+    accounts: ProfitLossAccountItem[];
+    total: number;
+  };
+  otherExpenses: {
+    accounts: ProfitLossAccountItem[];
+    total: number;
+  };
+  netProfit: number;
+}
+
+export interface BalanceSheetAccountItem {
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  balance: number;
+}
+
+export interface BalanceSheetReport {
+  companyId: string;
+  asOfDate: string;
+  branchId?: string | null;
+  generatedAt: string;
+  currencyCode: string;
+  assets: {
+    currentAssets: BalanceSheetAccountItem[];
+    nonCurrentAssets: BalanceSheetAccountItem[];
+    totalCurrentAssets: number;
+    totalNonCurrentAssets: number;
+    totalAssets: number;
+  };
+  liabilities: {
+    currentLiabilities: BalanceSheetAccountItem[];
+    nonCurrentLiabilities: BalanceSheetAccountItem[];
+    totalCurrentLiabilities: number;
+    totalNonCurrentLiabilities: number;
+    totalLiabilities: number;
+  };
+  equity: {
+    accounts: BalanceSheetAccountItem[];
+    totalAccounts: number;
+    currentPeriodNetProfit: number;
+    totalEquity: number;
+  };
+  totalLiabilitiesAndEquity: number;
+  discrepancy: number;
+  isBalanced: boolean;
+}
+
+export interface ArAgingItem {
+  receivableId: string;
+  customerId: string;
+  customerCode: string;
+  customerName: string;
+  salesInvoiceId: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  dueDate?: string | null;
+  currencyCode: string;
+  invoiceAmount: number;
+  paidAmount: number;
+  outstandingAmount: number;
+  daysOverdue: number;
+  bucket: 'CURRENT' | 'DAYS_1_30' | 'DAYS_31_60' | 'DAYS_61_90' | 'DAYS_91_120' | 'DAYS_OVER_120';
+}
+
+export interface ArAgingCustomerSummary {
+  customerId: string;
+  customerCode: string;
+  customerName: string;
+  current: number;
+  days1To30: number;
+  days31To60: number;
+  days61To90: number;
+  days91To120: number;
+  daysOver120: number;
+  totalOutstanding: number;
+}
+
+export interface ArAgingReport {
+  companyId: string;
+  asOfDate: string;
+  generatedAt: string;
+  currencyCode: string;
+  items: ArAgingItem[];
+  customers: ArAgingCustomerSummary[];
+  totalCurrent: number;
+  totalDays1To30: number;
+  totalDays31To60: number;
+  totalDays61To90: number;
+  totalDays91To120: number;
+  totalDaysOver120: number;
+  grandTotalOutstanding: number;
+  glAccountBalance: number;
+  discrepancy: number;
+  isReconciled: boolean;
+}
+
+export interface ApAgingItem {
+  payableId: string;
+  supplierId: string;
+  supplierCode: string;
+  supplierName: string;
+  purchaseInvoiceId: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  dueDate?: string | null;
+  currencyCode: string;
+  invoiceAmount: number;
+  paidAmount: number;
+  outstandingAmount: number;
+  daysOverdue: number;
+  bucket: 'CURRENT' | 'DAYS_1_30' | 'DAYS_31_60' | 'DAYS_61_90' | 'DAYS_91_120' | 'DAYS_OVER_120';
+}
+
+export interface ApAgingSupplierSummary {
+  supplierId: string;
+  supplierCode: string;
+  supplierName: string;
+  current: number;
+  days1To30: number;
+  days31To60: number;
+  days61To90: number;
+  days91To120: number;
+  daysOver120: number;
+  totalOutstanding: number;
+}
+
+export interface ApAgingReport {
+  companyId: string;
+  asOfDate: string;
+  generatedAt: string;
+  currencyCode: string;
+  items: ApAgingItem[];
+  suppliers: ApAgingSupplierSummary[];
+  totalCurrent: number;
+  totalDays1To30: number;
+  totalDays31To60: number;
+  totalDays61To90: number;
+  totalDays91To120: number;
+  totalDaysOver120: number;
+  grandTotalOutstanding: number;
+  glAccountBalance: number;
+  discrepancy: number;
+  isReconciled: boolean;
+}
+
+export interface CashBankAccountSummary {
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  accountType: AccountType;
+  openingBalance: number;
+  totalReceipts: number;
+  totalPayments: number;
+  closingBalance: number;
+  transactions: Array<{
+    journalId: string;
+    journalNumber: string;
+    postingDate: string;
+    sourceDocumentType: string;
+    description?: string | null;
+    debit: number;
+    credit: number;
+    runningBalance: number;
+  }>;
+}
+
+export interface CashBankReport {
+  companyId: string;
+  startDate: string;
+  endDate: string;
+  generatedAt: string;
+  currencyCode: string;
+  accounts: CashBankAccountSummary[];
+  totalOpeningBalance: number;
+  totalReceipts: number;
+  totalPayments: number;
+  totalClosingBalance: number;
+}
+
+
 

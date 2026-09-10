@@ -477,7 +477,7 @@ export class PurchaseInvoiceService {
         apAccountId = newAp.id;
       }
 
-      // Inventory Clearing / Expense Account
+      // Inventory Clearing / Expense Account (Matches Goods Received Not Invoiced clearing)
       const assetOrExpenseAccounts = await this.coaRepo.list(
         companyId,
         { isActive: true, isGroup: false },
@@ -486,12 +486,14 @@ export class PurchaseInvoiceService {
       const defaultClearing =
         assetOrExpenseAccounts.find(
           (a) =>
-            a.accountCode === '1400' ||
-            a.accountCode === '5000' ||
             a.accountName.toUpperCase().includes('CLEARING') ||
-            a.accountName.toUpperCase().includes('EXPENSE')
+            a.accountCode === '5000' ||
+            a.accountCode === '1499'
         ) ||
-        assetOrExpenseAccounts.find((a) => a.accountType === 'ASSET' || a.accountType === 'EXPENSE') ||
+        assetOrExpenseAccounts.find(
+          (a) => a.accountType === 'EXPENSE' || a.accountName.toUpperCase().includes('EXPENSE')
+        ) ||
+        assetOrExpenseAccounts.find((a) => a.accountType === 'ASSET') ||
         assetOrExpenseAccounts[0];
 
       let clearingAccountId = defaultClearing?.id;
@@ -499,9 +501,9 @@ export class PurchaseInvoiceService {
         const newClearing = await this.coaRepo.create(
           {
             companyId,
-            accountCode: '1400',
+            accountCode: '5000',
             accountName: 'Inventory Clearing Account',
-            accountType: 'ASSET',
+            accountType: 'EXPENSE',
             isGroup: false,
             isActive: true,
             currencyCode: invoice.currencyCode,

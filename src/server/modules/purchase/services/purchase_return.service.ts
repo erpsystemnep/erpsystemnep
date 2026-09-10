@@ -5,6 +5,7 @@ import {
   CreateReturnLineDbInput,
 } from '../repositories/purchase_return.repository.js';
 import { StockLedgerRepository } from '../../inventory/repositories/stock_ledger.repository.js';
+import { InventoryValuationService } from '../../inventory/services/inventory_valuation.service.js';
 import { StateMachineEngine } from '../../workflow/services/state_machine.service.js';
 import { NumberingService } from '../../numbering/services/numbering.service.js';
 import { AuditService } from '../../audit/services/audit.service.js';
@@ -17,6 +18,7 @@ export class PurchaseReturnService {
   constructor(
     private returnRepo: PurchaseReturnRepository = new PurchaseReturnRepository(),
     private stockLedgerRepo: StockLedgerRepository = new StockLedgerRepository(),
+    private valuationService: InventoryValuationService = new InventoryValuationService(),
     private stateMachine: StateMachineEngine = new StateMachineEngine(),
     private numbering: NumberingService = new NumberingService(),
     private audit: AuditService = new AuditService()
@@ -248,6 +250,25 @@ export class PurchaseReturnService {
           },
           dbClient
         );
+
+        if (stockStatus === 'AVAILABLE') {
+          await this.valuationService.recordReturnCostLayer(
+            {
+              companyId: ret.companyId,
+              branchId: ret.branchId,
+              warehouseId: line.warehouseId,
+              itemId: line.itemId,
+              batchId: line.batchId,
+              quantity: line.returnQuantity,
+              unitCost: line.unitRate,
+              sourceDocumentType: 'PURCHASE_RETURN',
+              sourceDocumentId: ret.id,
+              sourceDocumentLineId: line.id,
+              accountingDate: ret.returnDate ? new Date(ret.returnDate).toISOString().split('T')[0] : undefined,
+            },
+            dbClient
+          );
+        }
       }
 
       await this.audit.logUpdate(

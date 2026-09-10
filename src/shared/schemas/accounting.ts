@@ -58,3 +58,52 @@ export const createAccountSchema = CreateAccountSchema;
 export const updateAccountSchema = UpdateAccountSchema;
 export const createJournalSchema = CreateJournalSchema;
 export const journalLineSchema = JournalLineSchema;
+
+export const CreateFiscalYearSchema = z.object({
+  name: z.string().min(1, 'Fiscal year name is required').max(64),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Valid start date (YYYY-MM-DD) is required'),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Valid end date (YYYY-MM-DD) is required'),
+}).refine(
+  (data) => new Date(data.startDate) <= new Date(data.endDate),
+  { message: 'Start date must be before or equal to end date' }
+);
+
+export const CreateAccountingPeriodSchema = z.object({
+  fiscalYearId: z.string().uuid().optional().nullable(),
+  periodName: z.string().min(1, 'Period name is required').max(64),
+  periodNumber: z.number().int().min(1).max(13).default(1),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Valid start date (YYYY-MM-DD) is required'),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Valid end date (YYYY-MM-DD) is required'),
+  closingNotes: z.string().optional().nullable(),
+}).refine(
+  (data) => new Date(data.startDate) <= new Date(data.endDate),
+  { message: 'Start date must be before or equal to end date' }
+);
+
+export const GeneratePeriodsSchema = z.object({
+  fiscalYearId: z.string().uuid().optional().nullable(),
+  year: z.number().int().min(2000).max(2100),
+});
+
+export const ClosePeriodSchema = z.object({
+  closingNotes: z.string().optional().nullable(),
+});
+
+export const ReopenPeriodSchema = z.object({
+  reason: z.string().min(3, 'Reopen reason must be at least 3 characters long'),
+});
+
+export const YearEndClosingSchema = z.object({
+  fiscalYearId: z.string().uuid('Fiscal year ID is required'),
+  retainedEarningsAccountId: z.string().uuid().optional().nullable(),
+  postingDate: z.string().optional(),
+  notes: z.string().optional().nullable(),
+});
+
+export type CreateFiscalYearInput = z.infer<typeof CreateFiscalYearSchema>;
+export type CreateAccountingPeriodInput = z.infer<typeof CreateAccountingPeriodSchema>;
+export type GeneratePeriodsInput = z.infer<typeof GeneratePeriodsSchema>;
+export type ClosePeriodInput = z.infer<typeof ClosePeriodSchema>;
+export type ReopenPeriodInput = z.infer<typeof ReopenPeriodSchema>;
+export type YearEndClosingInput = z.infer<typeof YearEndClosingSchema>;
+

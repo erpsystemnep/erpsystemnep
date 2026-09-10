@@ -138,6 +138,70 @@ export class InventoryValuationService {
   }
 
   /**
+   * Consumes/reduces cost layers for a purchase return
+   */
+  async recordReturnCostLayer(
+    data: {
+      companyId: string;
+      branchId?: string | null;
+      warehouseId: string;
+      itemId: string;
+      batchId: string;
+      quantity: number;
+      unitCost: number;
+      sourceDocumentType: string;
+      sourceDocumentId: string;
+      sourceDocumentLineId?: string | null;
+      accountingDate?: string;
+    },
+    client: pg.PoolClient
+  ): Promise<number> {
+    const totalCost = Math.round(data.quantity * data.unitCost * 10000) / 10000;
+    const layers = await this.costLayerRepo.findLayersByBatch(
+      data.companyId,
+      data.warehouseId,
+      data.itemId,
+      data.batchId,
+      client,
+      true,
+      true
+    );
+
+    let remainingToDeduct = data.quantity;
+    for (const layer of layers) {
+      if (remainingToDeduct <= 0) break;
+      const deduct = Math.min(layer.remainingQuantity, remainingToDeduct);
+      await this.costLayerRepo.consumeFromLayer(layer.id, deduct, client);
+      remainingToDeduct = Math.round((remainingToDeduct - deduct) * 10000) / 10000;
+
+      await this.valTxRepo.createTransaction(
+        {
+          companyId: data.companyId,
+          branchId: data.branchId,
+          warehouseId: data.warehouseId,
+          itemId: data.itemId,
+          batchId: data.batchId,
+          costLayerId: layer.id,
+          transactionType: 'RETURN',
+          sourceType: data.sourceDocumentType,
+          sourceId: data.sourceDocumentId,
+          sourceLineId: data.sourceDocumentLineId,
+          quantity: -deduct,
+          unitCost: layer.unitCost,
+          totalCost: -Math.round(deduct * layer.unitCost * 10000) / 10000,
+          currencyCode: layer.currencyCode,
+          exchangeRate: layer.exchangeRate,
+          accountingDate: data.accountingDate || new Date().toISOString().split('T')[0],
+          status: 'POSTED',
+        },
+        client
+      );
+    }
+
+    return totalCost;
+  }
+
+  /**
    * Consumes inventory cost layers FIFO for goods delivery issues
    */
   async issueCostLayers(
@@ -151,6 +215,7 @@ export class InventoryValuationService {
       data.itemId,
       data.batchId,
       client,
+      true,
       true
     );
 

@@ -184,7 +184,7 @@ export class CustomerPaymentRepository {
     const sql = `
       SELECT 
         p.*,
-        bp.code AS partner_code, bp.legal_name AS partner_legal_name, bp.trade_name AS partner_trade_name,
+        bp.partner_code AS partner_code, bp.legal_name AS partner_legal_name, bp.trade_name AS partner_trade_name,
         da.account_code AS deposit_acc_code, da.account_name AS deposit_acc_name
       FROM customer_payments p
       JOIN business_partners bp ON p.customer_id = bp.id
@@ -257,7 +257,7 @@ export class CustomerPaymentRepository {
     const sql = `
       SELECT 
         p.*,
-        bp.code AS partner_code, bp.legal_name AS partner_legal_name, bp.trade_name AS partner_trade_name,
+        bp.partner_code AS partner_code, bp.legal_name AS partner_legal_name, bp.trade_name AS partner_trade_name,
         da.account_code AS deposit_acc_code, da.account_name AS deposit_acc_name
       FROM customer_payments p
       JOIN business_partners bp ON p.customer_id = bp.id

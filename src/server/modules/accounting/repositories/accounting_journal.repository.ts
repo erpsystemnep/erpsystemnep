@@ -5,6 +5,7 @@ import {
   AccountingJournalLine,
   JournalStatus,
 } from '../../../../shared/types/index.js';
+import { AccountingPeriodRepository } from './accounting_period.repository.js';
 
 export interface CreateJournalDbInput {
   companyId: string;
@@ -47,6 +48,8 @@ export interface ListJournalsFilter {
 }
 
 export class AccountingJournalRepository {
+  private periodRepo = new AccountingPeriodRepository();
+
   private mapJournalRow(row: any): AccountingJournal {
     return {
       id: row.id,
@@ -118,6 +121,12 @@ export class AccountingJournalRepository {
 
   async create(data: CreateJournalDbInput, client?: pg.PoolClient): Promise<AccountingJournal> {
     const pool = client || getPool();
+
+    // Enforce accounting period open invariant before inserting POSTED journal
+    if (data.status === 'POSTED' && data.sourceDocumentType !== 'YEAR_END_CLOSING') {
+      await this.periodRepo.assertPeriodOpen(data.companyId, data.postingDate, pool);
+    }
+
     const sql = `
       INSERT INTO accounting_journals (
         company_id, branch_id, journal_number, posting_date,
@@ -211,7 +220,7 @@ export class AccountingJournalRepository {
       SELECT 
         l.*,
         a.account_code, a.account_name, a.account_type, a.parent_account_id, a.is_group, a.is_active,
-        p.code AS partner_code, p.legal_name AS partner_legal_name, p.trade_name AS partner_trade_name
+        p.partner_code AS partner_code, p.legal_name AS partner_legal_name, p.trade_name AS partner_trade_name
       FROM accounting_journal_lines l
       JOIN chart_of_accounts a ON l.account_id = a.id
       LEFT JOIN business_partners p ON l.partner_id = p.id
@@ -273,6 +282,21 @@ export class AccountingJournalRepository {
     client?: pg.PoolClient
   ): Promise<AccountingJournal | null> {
     const pool = client || getPool();
+
+    // Enforce accounting period open invariant when transitioning journal to POSTED
+    if (status === 'POSTED') {
+      const jRes = await pool.query(
+        `SELECT company_id, posting_date FROM accounting_journals WHERE id = $1`,
+        [id]
+      );
+      if (jRes.rows.length > 0) {
+        const pDate = jRes.rows[0].posting_date
+          ? new Date(jRes.rows[0].posting_date).toISOString().split('T')[0]
+          : '';
+        await this.periodRepo.assertPeriodOpen(jRes.rows[0].company_id, pDate, pool);
+      }
+    }
+
     const updates: string[] = ['status = $2', 'updated_at = CURRENT_TIMESTAMP'];
     const params: any[] = [id, status];
     let idx = 3;

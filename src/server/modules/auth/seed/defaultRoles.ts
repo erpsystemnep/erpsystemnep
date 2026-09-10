@@ -271,6 +271,12 @@ export const STANDARD_PERMISSIONS: PermissionDefinition[] = [
   { id: 'accounting.journal.reverse', module: 'accounting', action: 'reverse', description: 'Post compensating general ledger reversal journals' },
   { id: 'accounting.journal.export', module: 'accounting', action: 'export', description: 'Export general ledger journal registers' },
   { id: 'accounting.journal.print', module: 'accounting', action: 'print', description: 'Print journal vouchers and accounting reports' },
+  { id: 'accounting.period.view', module: 'accounting', action: 'view', description: 'View fiscal years and accounting periods' },
+  { id: 'accounting.period.manage', module: 'accounting', action: 'manage', description: 'Create and configure fiscal years and accounting periods' },
+  { id: 'accounting.period.close', module: 'accounting', action: 'close', description: 'Close accounting periods and perform year-end closing' },
+  { id: 'accounting.period.reopen', module: 'accounting', action: 'reopen', description: 'Reopen previously closed accounting periods' },
+  { id: 'accounting.report.view', module: 'accounting', action: 'view', description: 'View financial statements and management reports' },
+  { id: 'accounting.report.export', module: 'accounting', action: 'export', description: 'Export financial reports to CSV and spreadsheet formats' },
 ];
 
 export interface StandardRoleDefinition {
@@ -481,6 +487,12 @@ export const STANDARD_ROLES: StandardRoleDefinition[] = [
       'accounting.journal.reverse',
       'accounting.journal.export',
       'accounting.journal.print',
+      'accounting.period.view',
+      'accounting.period.manage',
+      'accounting.period.close',
+      'accounting.period.reopen',
+      'accounting.report.view',
+      'accounting.report.export',
     ],
   },
   {
@@ -599,6 +611,10 @@ export const STANDARD_ROLES: StandardRoleDefinition[] = [
       'accounting.journal.reverse',
       'accounting.journal.export',
       'accounting.journal.print',
+      'accounting.period.view',
+      'accounting.period.close',
+      'accounting.report.view',
+      'accounting.report.export',
     ],
   },
   {
@@ -695,6 +711,9 @@ export const STANDARD_ROLES: StandardRoleDefinition[] = [
       'accounting.journal.view',
       'accounting.journal.export',
       'accounting.journal.print',
+      'accounting.period.view',
+      'accounting.report.view',
+      'accounting.report.export',
     ],
   },
 ];

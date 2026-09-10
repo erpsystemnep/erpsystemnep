@@ -10,10 +10,10 @@ export interface CreateCostLayerDbInput {
   batchId: string;
   uomId: string;
   initialQuantity: number;
-  remainingQuantity: number;
+  remainingQuantity?: number;
   unitCost: number;
-  totalCost: number;
-  remainingValue: number;
+  totalCost?: number;
+  remainingValue?: number;
   currencyCode?: string;
   exchangeRate?: number;
   sourceDocumentType: string;
@@ -71,6 +71,12 @@ export class CostLayerRepository {
 
   async createLayer(layer: CreateCostLayerDbInput, client?: pg.PoolClient): Promise<InventoryCostLayer> {
     const executor = this.getExecutor(client);
+    const initialQuantity = Number(layer.initialQuantity);
+    const remainingQuantity = layer.remainingQuantity !== undefined ? Number(layer.remainingQuantity) : initialQuantity;
+    const unitCost = Number(layer.unitCost);
+    const totalCost = layer.totalCost !== undefined ? Number(layer.totalCost) : Math.round(initialQuantity * unitCost * 10000) / 10000;
+    const remainingValue = layer.remainingValue !== undefined ? Number(layer.remainingValue) : Math.round(remainingQuantity * unitCost * 10000) / 10000;
+
     const sql = `
       INSERT INTO inventory_cost_layers (
         company_id, branch_id, warehouse_id, item_id, batch_id, uom_id,
@@ -87,18 +93,18 @@ export class CostLayerRepository {
       layer.itemId,
       layer.batchId,
       layer.uomId,
-      layer.initialQuantity,
-      layer.remainingQuantity,
-      layer.unitCost,
-      layer.totalCost,
-      layer.remainingValue,
+      initialQuantity,
+      remainingQuantity,
+      unitCost,
+      totalCost,
+      remainingValue,
       layer.currencyCode || 'USD',
       layer.exchangeRate || 1.0,
       layer.sourceDocumentType,
       layer.sourceDocumentId,
       layer.sourceDocumentLineId || null,
       layer.accountingDate || new Date().toISOString().split('T')[0],
-      layer.remainingQuantity <= 0,
+      remainingQuantity <= 0,
     ];
     const res = await executor.query(sql, values);
     return this.mapRow(res.rows[0]);
@@ -120,7 +126,8 @@ export class CostLayerRepository {
     itemId: string,
     batchId: string,
     client?: pg.PoolClient,
-    activeOnly: boolean = true
+    activeOnly: boolean = true,
+    forUpdate: boolean = false
   ): Promise<InventoryCostLayer[]> {
     const executor = this.getExecutor(client);
     let sql = `
@@ -135,6 +142,10 @@ export class CostLayerRepository {
     }
 
     sql += ` ORDER BY accounting_date ASC, created_at ASC`;
+
+    if (forUpdate && client) {
+      sql += ` FOR UPDATE`;
+    }
 
     const res = await executor.query(sql, params);
     return res.rows.map((r) => this.mapRow(r));
